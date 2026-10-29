@@ -2,6 +2,8 @@
 
 RBS Engine není jen jedna hra – je to **nástroj na tvorbu retro FPS** (jako Unity nebo FPS Creator, ale zaměřený na boomer shootery). Hra, kterou v něm uděláš, je **projekt**: složka v `mods/` s vlastními levely, nepřáteli, zbraněmi, menu a nastavením. Hotový projekt jedním tlačítkem vyexportuješ jako **samostatnou hru**, kterou můžeš dát hráčům, nahrát na itch.io nebo prodávat (licence MIT to dovoluje).
 
+![Typ nepřítele bez kódu v editoru](images/editor_nocode.jpg)
+
 Většinu hry uděláš **bez programování** – vestavěné chování (AI nepřátel, zbraně, předměty, dveře, triggery) se nastavuje v editoru. Kód (Lua, C, C++, Rust, C#) přijde na řadu jen pro věci, které vestavěné možnosti nepokrývají.
 
 - [1. Nový projekt](#1-nový-projekt)

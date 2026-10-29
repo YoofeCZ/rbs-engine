@@ -13,6 +13,10 @@ Každý si v něm může udělat **vlastní hru**: levely, nepřátele, zbraně,
 
 ![Editor](docs/images/editor.jpg)
 
+| Nepřítel bez kódu: AI z rozbalovacích seznamů | Menu vlastní vyexportované hry |
+|---|---|
+| ![Typ nepřítele bez kódu](docs/images/editor_nocode.jpg) | ![Exportovaná hra](docs/images/game_menu.jpg) |
+
 ## Co umí
 
 **Tvorba her**
