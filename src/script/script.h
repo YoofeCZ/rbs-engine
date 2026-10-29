@@ -29,6 +29,7 @@ struct WeaponDef {
     Vector3 flashColor{1.0f, 0.7f, 0.3f};
     float flashSize = 18.0f;
     int startAmmo = 0;
+    std::string definition;  // "weapons/<id>.json" for weapons made without code
     int luaRef = -2;
 };
 
@@ -40,6 +41,10 @@ struct ClassInfo {
     std::string model, sprite;
     bool brush = false;
     json props = json::object();
+    std::string base;        // parent class (rbs.class{base = ...})
+    std::string definition;  // "entities/<name>.json" for types made without code
+    json enums = json::object();  // property -> list of allowed values (editor dropdown)
+    json help = json::object();   // property -> tooltip text
 };
 
 class Script {
@@ -92,6 +97,12 @@ public:
     const ClassInfo* FindClass(const std::string& name) const;
     const ClassInfo* FindComponent(const std::string& name) const;
     int WeaponIndex(const std::string& id) const;
+    // Data fields of a weapon (no functions, no id) - the editor copies them into new weapon files.
+    json WeaponData(const std::string& id) const;
+    // rbs.<field> converted to JSON (null if missing), e.g. "weapon_fields"
+    json LuaJson(const char* field) const;
+    // true if `cls` is `base` or derives from it
+    bool IsA(const std::string& cls, const std::string& base) const;
 
     lua_State* L = nullptr;
     Game* game = nullptr;

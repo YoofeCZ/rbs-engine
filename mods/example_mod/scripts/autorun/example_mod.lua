@@ -46,25 +46,17 @@ rbs.weapon{
   end,
 }
 
--- 3) A new monster derived from the fiend: small, fast, purple, only throws fireballs
-rbs.class("monster_imp", {
+-- 3) A new monster derived from the fiend: small, fast, purple, keeps its distance and
+--    throws fireballs. The built-in AI options come from rbs.monster (they show up in the
+--    editor), the attack is its own Lua code - attack_type "custom" says so.
+rbs.monster("monster_imp", {
   base = "monster_fiend",
-  editor = { category = "monsters", color = {170, 60, 255}, mins = {-12, -24, -12}, maxs = {12, 16, 12},
+  editor = { color = {170, 60, 255}, mins = {-12, -24, -12}, maxs = {12, 16, 12},
              model = "models/monsters/fiend.glb", desc = "Imp (example mod): small and fast, throws fireballs.",
-             props = { health = 40 } },
+             props = { health = 40, ai = "ranged", speed = 300, attack_range = 900, keep_distance = 300,
+                       attack_cooldown = 0.9, attack_type = "custom", leap = false,
+                       scale = 0.75, tint = {190, 120, 255} } },
   max_hp = 40,
-  speed = 300,
-  attack_range = 900,
-  keep_distance = 300,
-  attack_cooldown = 0.9,
-  spawn = function(self)
-    rbs.classes.monster_fiend.spawn(self)
-    self.scale = 0.75
-    self.tint = {r = 190, g = 120, b = 255, a = 255}
-    self.mins = vec(-12, -24, -12)
-    self.maxs = vec(12, 16, 12)
-    self.model_offset = vec(0, 0, 0)
-  end,
   attack = function(self, enemy)
     local origin = self.pos + vec(0, 10, 0)
     rbs.projectile("fireball", self, origin, (enemy.center - origin):normalize(), 800)

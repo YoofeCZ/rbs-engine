@@ -2,6 +2,7 @@
 #include "app/app.h"
 #include "core/cvar.h"
 #include "core/log.h"
+#include "core/project.h"
 #include "core/vfs.h"
 #include "editor/editor_impl.h"
 #include "render/assets.h"
@@ -116,7 +117,12 @@ void Editor::Impl::DrawHierarchy(Rectangle r) {
     Fill(r, theme.panel);
     DrawLine((int)(r.x + r.width - 1), (int)r.y, (int)(r.x + r.width - 1), (int)(r.y + r.height), theme.border);
     PanelTitle(r, "HIERARCHY");
-    TextField("hier_search", {r.x + 6, r.y + 28, r.width - 12, 22}, hierSearch, "Search...");
+    // the open game project; opens the Project dialog (new / open / settings / build)
+    const project::Info& proj = project::Current();
+    std::string projLabel = proj.folder.empty() ? "Project: base game (demo)" : "Project: " + proj.title;
+    if (Button("projbtn", {r.x + 6, r.y + 28, r.width - 12, 24}, Ellipsize(projLabel, r.width - 24, 13), !proj.folder.empty())) OpenProjectDialog();
+    if (Hovered({r.x + 6, r.y + 28, r.width - 12, 24})) Tooltip("New project, open project, settings, build the game");
+    TextField("hier_search", {r.x + 6, r.y + 56, r.width - 12, 22}, hierSearch, "Search...");
 
     struct Row {
         int kind;  // 0 header, 1 entity, 2 brush, 3 map settings
@@ -170,7 +176,7 @@ void Editor::Impl::DrawHierarchy(Rectangle r) {
         }
     }
 
-    Rectangle area{r.x, r.y + 56, r.width, r.height - 56};
+    Rectangle area{r.x, r.y + 84, r.width, r.height - 84};
     float scroll = BeginScroll("hier", area, rows.size() * 20.0f + 8);
     for (size_t i = 0; i < rows.size(); ++i) {
         Row& row = rows[i];
@@ -243,7 +249,16 @@ void Editor::Impl::DrawHierarchy(Rectangle r) {
 // ---------------------------------------------------------------------------------
 static bool IsVec3(const json& v) { return v.is_array() && v.size() == 3 && v[0].is_number() && v[1].is_number() && v[2].is_number(); }
 
-float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json& props, const json& defaults, bool allowRemove) {
+float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json& props, const json& defaults, bool allowRemove,
+                               const json* enums, const json* help, bool* assetChanged) {
+    // map edits go through undo and mark the map dirty; definition edits (assetChanged) don't
+    auto commit = [&](const std::string& key) {
+        if (assetChanged) {
+            *assetChanged = true;
+            return;
+        }
+        SnapshotCoalesced(this, id + key);
+    };
     std::vector<std::string> keys;
     if (defaults.is_object())
         for (auto it = defaults.begin(); it != defaults.end(); ++it) keys.push_back(it.key());
@@ -257,10 +272,23 @@ float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json
         const json& def = defaults.is_object() && defaults.contains(k) ? defaults[k] : json();
         json value = isSet ? props[k] : def;
         Text(Ellipsize(k, labelW - 6, 13), r.x + 12, y + 4, isSet ? theme.text : theme.textDim, 13);
+        if (help && help->contains(k) && (*help)[k].is_string() && Hovered({r.x + 10, y, labelW, kRow - 2})) Tooltip((*help)[k].get<std::string>());
         Rectangle fr{fx, y, fw, kRow - 2};
         bool changed = false;
         json nv = value;
-        if (value.is_number()) {
+        const json* options = enums && enums->contains(k) && (*enums)[k].is_array() ? &(*enums)[k] : nullptr;
+        if (options) {
+            // fixed choices (ai, attack_type...): a dropdown, keeping an unknown current value
+            std::vector<std::string> opts;
+            for (auto& o : *options)
+                if (o.is_string()) opts.push_back(o.get<std::string>());
+            std::string cur = value.is_string() ? value.get<std::string>() : value.dump();
+            if (std::find(opts.begin(), opts.end(), cur) == opts.end()) opts.push_back(cur);
+            if (Dropdown("enum", fr, cur, opts)) {
+                nv = cur;
+                changed = true;
+            }
+        } else if (value.is_number()) {
             float f = value.get<float>();
             if (FloatField("num", fr, f, fabsf(f) > 50 ? 1.0f : 0.05f, "%g")) {
                 nv = value.is_number_integer() ? json((long long)roundf(f)) : json(f);
@@ -304,16 +332,19 @@ float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json
             }
         }
         if (changed) {
-            SnapshotCoalesced(this, id + k);
+            commit(k);
             props[k] = nv;
-            Changed(false);
-            meshDirty = true;
+            if (!assetChanged) {
+                Changed(false);
+                meshDirty = true;
+            }
         }
         if (allowRemove && isSet) {
             if (Button("rm", {r.x + r.width - 30, y, 20, kRow - 2}, "x")) {
-                Snapshot();
+                if (assetChanged) *assetChanged = true;
+                else Snapshot();
                 props.erase(k);
-                Changed(false);
+                if (!assetChanged) Changed(false);
             }
             if (Hovered({r.x + r.width - 30, y, 20, kRow - 2})) Tooltip(def.is_null() ? "Remove property" : "Reset to default");
         }
@@ -326,12 +357,13 @@ float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json
         TextField("k", {r.x + 10, y, labelW - 4, kRow - 2}, newPropKey, "key");
         TextField("v", {fx, y, fw, kRow - 2}, newPropValue, "value");
         if (Button("add", {r.x + r.width - 30, y, 20, kRow - 2}, "+") && !newPropKey.empty()) {
-            Snapshot();
+            if (assetChanged) *assetChanged = true;
+            else Snapshot();
             json parsed = json::parse(newPropValue, nullptr, false);
             props[newPropKey] = parsed.is_discarded() ? json(newPropValue) : parsed;
             newPropKey.clear();
             newPropValue.clear();
-            Changed(false);
+            if (!assetChanged) Changed(false);
         }
         PopId();
         y += kRow;
@@ -423,7 +455,8 @@ float Editor::Impl::InspectEntity(Rectangle r, float y) {
     }
     if (Header("h_props", {r.x, y, r.width, kRow}, "Properties", open["inspector_props"])) {}
     y += kRow + 2;
-    if (open["inspector_props"]) y = PropEditor("props", r, y, e.props, ci ? ci->props : json::object(), true) + 4;
+    if (open["inspector_props"])
+        y = PropEditor("props", r, y, e.props, ci ? ci->props : json::object(), true, ci ? &ci->enums : nullptr, ci ? &ci->help : nullptr) + 4;
 
     if (Header("h_comps", {r.x, y, r.width, kRow}, "Components", open["inspector_components"])) {}
     y += kRow + 2;
@@ -454,7 +487,8 @@ float Editor::Impl::InspectEntity(Rectangle r, float y) {
                     y += 16;
                 }
                 if (!c.contains("props") || !c["props"].is_object()) c["props"] = json::object();
-                y = PropEditor("cp" + std::to_string(i), r, y, c["props"], comp ? comp->props : json::object(), true) + 4;
+                y = PropEditor("cp" + std::to_string(i), r, y, c["props"], comp ? comp->props : json::object(), true, comp ? &comp->enums : nullptr,
+                               comp ? &comp->help : nullptr) + 4;
             }
             PopId();
             if (removed) break;
@@ -734,7 +768,9 @@ void Editor::Impl::DrawInspector(Rectangle r) {
     // drop invalid selection indices (after undo etc.)
     for (auto it = selBrushes.begin(); it != selBrushes.end();) it = (*it >= (int)map.brushes.size()) ? selBrushes.erase(it) : std::next(it);
     for (auto it = selEnts.begin(); it != selEnts.end();) it = (*it >= (int)map.entities.size()) ? selEnts.erase(it) : std::next(it);
-    if (!selFaces.empty() && tool == Tool::Face) y = InspectFaces(cr, y);
+    if (HasSelection() || !selFaces.empty()) inspectKind.clear();  // picking in the scene leaves the asset
+    if (!inspectKind.empty()) y = InspectAsset(cr, y);
+    else if (!selFaces.empty() && tool == Tool::Face) y = InspectFaces(cr, y);
     else if (selEnts.size() == 1) y = InspectEntity(cr, y);
     else if (!selBrushes.empty() && selEnts.empty()) y = InspectBrushes(cr, y);
     else if (!selEnts.empty()) {
@@ -769,15 +805,16 @@ void Editor::Impl::DrawBottom(Rectangle r) {
 }
 
 void Editor::Impl::DrawProject(Rectangle r) {
-    const char* folders[] = {"Entities", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
+    const char* folders[] = {"Entities", "Weapons", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
+    const int folderCount = (int)(sizeof(folders) / sizeof(folders[0]));
     float fw = 120;
     Fill({r.x, r.y, fw, r.height}, theme.panelAlt);
-    for (int i = 0; i < 9; ++i) {
-        Rectangle fr{r.x + 4, r.y + 4 + i * 22.0f, fw - 8, 20};
+    for (int i = 0; i < folderCount; ++i) {
+        Rectangle fr{r.x + 4, r.y + 4 + i * 20.0f, fw - 8, 19};
         bool sel = projectFolder == folders[i];
         if (sel) Fill(fr, theme.accentDim);
         else if (Hovered(fr)) Fill(fr, theme.buttonHover);
-        Text(folders[i], fr.x + 8, fr.y + 3, sel ? WHITE : theme.text, 13);
+        Text(folders[i], fr.x + 8, fr.y + 2, sel ? WHITE : theme.text, 13);
         if (Clicked(fr)) projectFolder = folders[i];
     }
     Rectangle top{r.x + fw + 6, r.y + 4, r.width - fw - 12, 22};
@@ -798,9 +835,21 @@ void Editor::Impl::DrawProject(Rectangle r) {
     }
     if (projectFolder == "Prefabs" && Button("saveprefab", {bx, top.y, 190, 22}, "Save selection as prefab", false, HasSelection()))
         dialog = "prefab", dialogText = "myprefab";
+    if (projectFolder == "Entities" || projectFolder == "Weapons") {
+        bool weapons = projectFolder == "Weapons";
+        if (Button("newdef", {bx, top.y, 130, 22}, weapons ? "+ New weapon" : "+ New type")) {
+            newDefName.clear();
+            newDefBase = weapons ? (weaponIds.empty() ? "" : weaponIds[0]) : (inspectKind == "class" ? inspectName : "monster_grunt");
+            dialog = weapons ? "newweapon" : "newtype";
+        }
+        if (Hovered({bx, top.y, 130, 22}))
+            Tooltip(weapons ? "Make a weapon without code: copy one and change its numbers" : "Make an enemy/item type without code: pick a base, change its properties");
+        bx += 136;
+    }
     std::string hint;
     if (projectFolder == "Textures") hint = "click = current texture, double click = apply to selection, drag onto a face";
-    else if (projectFolder == "Entities") hint = "click = choose for the Entity tool, drag into a view to place";
+    else if (projectFolder == "Entities") hint = "click = edit in Inspector + Entity tool, drag into a view to place";
+    else if (projectFolder == "Weapons") hint = "click = edit in Inspector";
     else if (projectFolder == "Components") hint = "drag onto an entity (3D view or hierarchy), or use Add Component";
     else if (projectFolder == "Models" || projectFolder == "Sprites" || projectFolder == "Sounds") hint = "drag into a view to place";
     else if (projectFolder == "Scripts") hint = "click to open in your text editor";
@@ -808,10 +857,12 @@ void Editor::Impl::DrawProject(Rectangle r) {
     Text(hint, bx + 6, top.y + 4, theme.textDim, 12);
 
     Rectangle area{r.x + fw + 4, r.y + 30, r.width - fw - 8, r.height - 34};
-    bool tiles = projectFolder == "Textures" || projectFolder == "Sprites" || projectFolder == "Entities" || projectFolder == "Models";
-    float tile = projectFolder == "Entities" ? 104 : 76;
+    bool tiles = projectFolder == "Textures" || projectFolder == "Sprites" || projectFolder == "Entities" || projectFolder == "Models" ||
+                 projectFolder == "Weapons";
+    float tile = projectFolder == "Entities" || projectFolder == "Weapons" ? 104 : 76;
     std::vector<std::string> items;
     if (projectFolder == "Entities") items = classNames;
+    else if (projectFolder == "Weapons") items = weaponIds;
     else if (projectFolder == "Components") items = componentNames;
     else if (projectFolder == "Textures") items = textureList;
     else if (projectFolder == "Models") items = modelList;
@@ -837,7 +888,8 @@ void Editor::Impl::DrawProject(Rectangle r) {
         std::string name = std::filesystem::path(it).filename().string();
         bool selected = false;
         if (projectFolder == "Textures") selected = it == curTexture;
-        if (projectFolder == "Entities") selected = it == curClass;
+        if (projectFolder == "Entities") selected = it == curClass || (inspectKind == "class" && inspectName == it);
+        if (projectFolder == "Weapons") selected = inspectKind == "weapon" && inspectName == it;
         if (selected) Fill(cell, theme.accentDim);
         else if (hov) Fill(cell, theme.buttonHover);
         if (tiles) {
@@ -856,6 +908,16 @@ void Editor::Impl::DrawProject(Rectangle r) {
                 Fill(img, Color{(unsigned char)(c.r / 4), (unsigned char)(c.g / 4), (unsigned char)(c.b / 4), 255});
                 DrawRectangle((int)(img.x + img.width / 2 - 10), (int)(img.y + img.height / 2 - 10), 20, 20, c);
                 if (ci) Text(ci->category, img.x + 4, img.y + 2, theme.textDim, 11);
+                if (ci && !ci->definition.empty()) Text("no-code", img.x + img.width - 46, img.y + 2, Color{120, 220, 140, 255}, 11);
+            } else if (projectFolder == "Weapons") {
+                int wi = script.WeaponIndex(it);
+                Fill(img, Color{44, 36, 24, 255});
+                if (wi >= 0) {
+                    const WeaponDef& wd = script.weapons[wi];
+                    TextCentered(std::to_string(wd.slot), {img.x, img.y + 4, img.width, img.height - 22}, Color{255, 200, 90, 255}, 26, "ui_bold");
+                    Text(Ellipsize(wd.name, img.width - 8, 11), img.x + 4, img.y + img.height - 16, theme.textDim, 11);
+                    if (!wd.definition.empty()) Text("no-code", img.x + img.width - 46, img.y + 2, Color{120, 220, 140, 255}, 11);
+                }
             } else {
                 Fill(img, Color{40, 34, 52, 255});
                 TextCentered("3D", img, Color{180, 160, 255, 255}, 20, "ui_bold");
@@ -873,7 +935,12 @@ void Editor::Impl::DrawProject(Rectangle r) {
             } else if (projectFolder == "Entities") {
                 curClass = it;
                 tool = Tool::Entity;
+                ClearSelection();
+                SelectAsset("class", it);
                 StartDrag("class", it, it);
+            } else if (projectFolder == "Weapons") {
+                ClearSelection();
+                SelectAsset("weapon", it);
             } else if (projectFolder == "Components") {
                 StartDrag("component", it, it);
             } else if (projectFolder == "Models") {
@@ -942,8 +1009,11 @@ void Editor::Impl::DrawConsole(Rectangle r) {
 // ---------------------------------------------------------------------------------
 void Editor::Impl::DrawDialogs(int w, int h) {
     if (dialog.empty()) return;
+    if (dialog == "project" || dialog == "newproject" || dialog == "newtype" || dialog == "newweapon") {
+        DrawProjectDialog(w, h);
+        return;
+    }
     Fill({0, 0, (float)w, (float)h}, Color{0, 0, 0, 110});
-    Block({0, 0, (float)w, (float)h});
     float dw = 460, dh = dialog == "open" ? 420 : 150;
     Rectangle d{w * 0.5f - dw * 0.5f, h * 0.5f - dh * 0.5f, dw, dh};
     Fill(d, theme.panelAlt);

@@ -12,8 +12,9 @@ namespace rbs {
 
 namespace vfs {
 
-// Locates the data root (folder containing base/). Returns false if not found.
-bool Init(const char* argv0);
+// Locates the data root (folder containing base/), searching up from the working folder
+// and the executable's folder. Returns false if not found.
+bool Init(const char* exePath);
 // Activates a mod (folder name inside mods/). Empty string = base game only.
 void SetMod(const std::string& mod);
 const std::string& CurrentMod();

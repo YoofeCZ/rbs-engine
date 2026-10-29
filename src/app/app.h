@@ -34,6 +34,10 @@ public:
     void OpenEditor(const std::string& map);
     void ReturnToMenu();
     Game& GetGame() { return m_game; }
+    // Opens another game project (folder in mods/, "base" = the base game).
+    void SwitchProject(const std::string& folder, bool openEditor, const std::string& editorMap);
+    // after the project's mod.json changed (start map, title...)
+    void RefreshProjectSettings();
     void Quit() { m_quit = true; }
 
 private:
@@ -75,6 +79,10 @@ private:
     void SetCursor(bool gameplay);
     void RunStartupExec();
     void ApplyGameConfig();
+    std::string WindowTitle() const;
+    bool ShowEditorInMenu() const;
+    bool ShowModsInMenu() const;
+    void OpenModsPage();
 };
 
 }  // namespace rbs

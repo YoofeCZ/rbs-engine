@@ -1,7 +1,9 @@
 #include "app/app.h"
+#include "app/project_tools.h"
 #include "core/cvar.h"
 #include "core/input.h"
 #include "core/log.h"
+#include "core/project.h"
 #include "core/vfs.h"
 #include "editor/editor.h"
 #include "render/assets.h"
@@ -12,6 +14,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <nlohmann/json.hpp>
 #include <rlgl.h>
 #include <sstream>
@@ -43,7 +46,7 @@ bool App::Init(const LaunchOptions& opt) {
     if (cvars::GetF("vid_vsync", 1) != 0 && opt.screenshot.empty()) flags |= FLAG_VSYNC_HINT;
     SetConfigFlags(flags);
     SetTraceLogLevel(LOG_WARNING);
-    InitWindow(w, h, "RBS Engine");
+    InitWindow(w, h, WindowTitle().c_str());
     SetExitKey(KEY_NULL);
     if (opt.fullscreen || cvars::GetF("vid_fullscreen") != 0) ToggleBorderlessWindowed();
     int fpsMax = (int)cvars::GetF("fps_max", 300);
@@ -139,9 +142,50 @@ void App::ReturnToMenu() {
 
 // game.cfg (in base or the active mod) sets the start map and other game variables
 void App::ApplyGameConfig() {
-    if (Cvar* start = cvars::Find("game_start_map")) start->Set(start->defaultValue);
+    if (Cvar* start = cvars::Find("game_start_map")) {
+        start->Set(start->defaultValue);
+        if (!project::Current().startMap.empty()) start->Set(project::Current().startMap);
+    }
     std::string text;
     if (vfs::ReadText("game.cfg", text)) cvars::ExecuteSettings(text, "game.cfg");
+}
+
+std::string App::WindowTitle() const {
+    const project::Info& p = project::Current();
+    return p.folder.empty() ? std::string("RBS Engine") : p.title;
+}
+
+// Switches the active game project (a folder in mods/, "" or "base" = the base game) and
+// reloads everything that depends on it. Opens the editor on `editorMap` if asked.
+void App::SwitchProject(const std::string& folder, bool openEditor, const std::string& editorMap) {
+    m_game.Unload();
+    vfs::SetMod(folder == "base" ? "" : folder);
+    project::Reload();
+    assets::ReloadAll();
+    gRenderer.ReloadShaders();
+    plugins::LoadAll();
+    fonts::UnloadAll();
+    ReloadLanguage();
+    ApplyGameConfig();
+    SetWindowTitle(WindowTitle().c_str());
+    if (openEditor) OpenEditor(editorMap);
+    else ReturnToMenu();
+}
+
+void App::RefreshProjectSettings() {
+    project::Reload();
+    ApplyGameConfig();
+    SetWindowTitle(WindowTitle().c_str());
+}
+
+bool App::ShowEditorInMenu() const {
+    const project::Launch& l = project::LaunchConfig();
+    return l.present ? l.editor : true;  // shipped games decide in their launch.json
+}
+
+bool App::ShowModsInMenu() const {
+    const project::Launch& l = project::LaunchConfig();
+    return l.present ? l.mods : true;
 }
 
 // --exec commands run once per launch (a "map" command in them must not re-trigger them)
@@ -246,15 +290,44 @@ void App::RegisterCommands() {
             for (auto& m : vfs::ListMods()) LOG_INFO("  %s", m.c_str());
             return;
         }
-        ReturnToMenu();
-        vfs::SetMod(a[1] == "base" ? "" : a[1]);
-        assets::ReloadAll();
-        gRenderer.ReloadShaders();
-        plugins::LoadAll();
-        fonts::UnloadAll();
-        ReloadLanguage();
-        ApplyGameConfig();
+        SwitchProject(a[1], false, "");
     }, "mod <name|base> - switch the active mod (no argument: list)");
+    cvars::AddCommand("project", [this](const std::vector<std::string>& a) {
+        if (a.size() < 2) {
+            const project::Info& p = project::Current();
+            if (p.folder.empty()) LOG_INFO("No project open (base game). Projects:");
+            else LOG_INFO("Project: %s (mods/%s), start map %s", p.title.c_str(), p.folder.c_str(), p.startMap.c_str());
+            for (auto& m : vfs::ListMods()) LOG_INFO("  %s - %s", m.c_str(), project::Read(m).title.c_str());
+            return;
+        }
+        SwitchProject(a[1], m_state == State::Editor, a[1] == "base" ? "" : project::Read(a[1]).startMap);
+    }, "project [folder] - show or open a game project (folder in mods/)");
+    cvars::AddCommand("new_project", [this](const std::vector<std::string>& a) {
+        if (a.size() < 2) {
+            LOG_INFO("new_project <folder> [title] - create a new game in mods/<folder> and open it in the editor");
+            return;
+        }
+        std::string title;
+        for (size_t i = 2; i < a.size(); ++i) title += (i > 2 ? " " : "") + a[i];
+        std::string err;
+        if (!project::Create(a[1], title, &err)) {
+            LOG_ERR("new_project: %s", err.c_str());
+            return;
+        }
+        SwitchProject(a[1], true, "maps/start.json");
+    }, "new_project <folder> [title] - create a new game project and open it in the editor");
+    cvars::AddCommand("build_game", [](const std::vector<std::string>& a) {
+        project::BuildOptions o;
+        o.includeEditor = project::Current().showEditor;
+        for (size_t i = 1; i < a.size(); ++i) {
+            if (a[i] == "editor") o.includeEditor = true;
+            else if (a[i] == "noeditor") o.includeEditor = false;
+            else if (a[i] == "demo") o.includeDemoMaps = true;
+            else o.outDir = a[i];
+        }
+        std::string report;
+        project::Build(o, &report);
+    }, "build_game [folder] [editor|noeditor] [demo] - export the open project as a standalone game");
     cvars::AddCommand("plugins", [](const std::vector<std::string>&) {
         auto list = plugins::Loaded();
         if (list.empty()) LOG_INFO("No native plugins loaded (put .dll/.so/.dylib files into plugins/)");
@@ -289,7 +362,8 @@ void App::Run() {
     while (!m_quit && !WindowShouldClose()) {
         float dt = GetFrameTime();
         int w = GetScreenWidth(), h = GetScreenHeight();
-        if (IsKeyPressed(KEY_GRAVE) || (IsKeyPressed(KEY_F1) && m_state != State::Editor)) m_console.Toggle();
+        bool consoleAllowed = project::LaunchConfig().console || m_state == State::Editor;
+        if (consoleAllowed && (IsKeyPressed(KEY_GRAVE) || (IsKeyPressed(KEY_F1) && m_state != State::Editor))) m_console.Toggle();
         bool consoleInput = m_console.Update();
 
         if (m_state == State::Game) {
@@ -426,6 +500,16 @@ void App::UpdateMenu(float dt) {
 
 void App::DrawMenuBackground(int w, int h, float alpha) {
     DrawRectangleGradientV(0, 0, w, h, Color{30, 10, 6, (unsigned char)(255 * alpha)}, Color{6, 4, 4, (unsigned char)(255 * alpha)});
+    // a game's own menu picture (mod.json "menu": {"background": "ui/menu.png"}), darkened on the left for the text
+    const std::string& bg = project::Current().menuBackground;
+    if (!bg.empty()) {
+        Texture2D t = assets::GetTexturePath(bg);
+        float s = std::max(w / (float)t.width, h / (float)t.height);
+        float dw = t.width * s, dh = t.height * s;
+        DrawTexturePro(t, {0, 0, (float)t.width, (float)t.height}, {(w - dw) * 0.5f, (h - dh) * 0.5f, dw, dh}, {0, 0}, 0,
+                       Color{255, 255, 255, (unsigned char)(255 * alpha)});
+        DrawRectangleGradientH(0, 0, w, h, Color{0, 0, 0, (unsigned char)(200 * alpha)}, Color{0, 0, 0, (unsigned char)(40 * alpha)});
+    }
     for (auto& e : m_embers) {
         unsigned char a = (unsigned char)(Clampf(e.life / 3.0f, 0, 1) * 200 * alpha);
         DrawCircleV(e.p, e.size, Color{255, 120, 40, a});
@@ -443,18 +527,47 @@ void App::DrawLoading(int w, int h) {
     fonts::Text("ui", TextFormat("%d %%", (int)(p * 100)), w * 0.5f - 12, h * 0.5f + 24, 16, kDim);
 }
 
+void App::OpenModsPage() {
+    m_page = MenuPage::Mods;
+    m_menuSel = 0;
+    m_modList.clear();
+    for (auto& folder : vfs::ListMods()) {
+        project::Info p = project::Read(folder);
+        ModInfo info{folder, p.title, p.description, p.author};
+        std::error_code ec;
+        for (auto& e : std::filesystem::directory_iterator(std::filesystem::path(vfs::Root()) / "mods" / folder / "plugins", ec)) {
+            std::string ext = ToLower(e.path().extension().string());
+            if (ext == ".dll" || ext == ".so" || ext == ".dylib") info.nativePlugins++;
+        }
+        m_modList.push_back(info);
+    }
+}
+
 void App::DrawMenu(int w, int h) {
     bool inGame = m_state == State::Game;
     if (inGame) DrawRectangle(0, 0, w, h, Color{0, 0, 0, 150});
     else DrawMenuBackground(w, h, 1);
 
     int x = (int)(w * 0.12f), y = (int)(h * 0.18f);
+    const project::Info& proj = project::Current();
     if (!inGame) {
-        fonts::Text("title", "RBS", (float)x + 4, (float)y + 4, 110, Color{0, 0, 0, 200});
-        fonts::Text("title", "RBS", (float)x, (float)y, 110, Color{200, 60, 30, 255});
-        fonts::Text("title", "ENGINE", (float)x + 230, (float)y + 58, 40, kGold);
-        // sub-pages put their own title where the tagline is
-        if (m_page == MenuPage::Main) fonts::Text("ui", Tr("retro boomer shooter engine"), (float)x + 6, (float)y + 120, 18, kDim);
+        if (proj.folder.empty()) {
+            fonts::Text("title", "RBS", (float)x + 4, (float)y + 4, 110, Color{0, 0, 0, 200});
+            fonts::Text("title", "RBS", (float)x, (float)y, 110, Color{200, 60, 30, 255});
+            fonts::Text("title", "ENGINE", (float)x + 230, (float)y + 58, 40, kGold);
+            // sub-pages put their own title where the tagline is
+            if (m_page == MenuPage::Main) fonts::Text("ui", Tr("retro boomer shooter engine"), (float)x + 6, (float)y + 120, 18, kDim);
+        } else {
+            // a game made with the engine shows its own name
+            const char* t = proj.menuTitle.c_str();
+            float ts = 96;
+            while (ts > 32 && fonts::Width("title", t, ts) > w - x - 40) ts -= 4;
+            float ty = y + (100 - ts) * 0.5f;
+            fonts::Text("title", t, (float)x + 4, ty + 4, ts, Color{0, 0, 0, 200});
+            fonts::Text("title", t, (float)x, ty, ts, Color{200, 60, 30, 255});
+            if (m_page == MenuPage::Main && !proj.menuSubtitle.empty())
+                fonts::Text("ui", Tr(proj.menuSubtitle.c_str()), (float)x + 6, (float)y + 120, 18, kDim);
+        }
         y += 190;
     } else {
         y = (int)(h * 0.3f);
@@ -495,43 +608,33 @@ void App::DrawMenu(int w, int h) {
             if (MenuItem(Tr("Quit"), idx++, x, y + step * 3, size)) m_quit = true;
             return;
         }
-        int n = 6;
+        // the items depend on what the game offers: a shipped game can hide the editor and mods
+        struct Item {
+            const char* label;
+            std::function<void()> action;
+        };
+        std::vector<Item> items;
+        items.push_back({Tr("New game"), [this] { StartMap(cvars::Find("game_start_map")->value); }});
+        items.push_back({Tr("Maps"), [this] {
+                             m_page = MenuPage::Maps;
+                             m_menuSel = 0;
+                             m_mapList = vfs::List("maps", ".json");
+                         }});
+        if (ShowEditorInMenu()) items.push_back({Tr("Level editor"), [this] { OpenEditor(""); }});
+        if (ShowModsInMenu()) items.push_back({Tr("Mods"), [this] { OpenModsPage(); }});
+        items.push_back({Tr("Options"), [this] {
+                             m_page = MenuPage::Options;
+                             m_menuSel = 0;
+                         }});
+        items.push_back({Tr("Quit"), [this] { m_quit = true; }});
+        int n = (int)items.size();
         m_menuSel = (m_menuSel % n + n) % n;
-        if (MenuItem(Tr("New game"), idx++, x, y, size)) StartMap(cvars::Find("game_start_map")->value);
-        if (MenuItem(Tr("Maps"), idx++, x, y + step, size)) {
-            m_page = MenuPage::Maps;
-            m_menuSel = 0;
-            m_mapList = vfs::List("maps", ".json");
-        }
-        if (MenuItem(Tr("Level editor"), idx++, x, y + step * 2, size)) OpenEditor("");
-        if (MenuItem(Tr("Mods"), idx++, x, y + step * 3, size)) {
-            m_page = MenuPage::Mods;
-            m_menuSel = 0;
-            m_modList.clear();
-            for (auto& folder : vfs::ListMods()) {
-                ModInfo info{folder, folder, "", ""};
-                std::ifstream f(std::filesystem::path(vfs::Root()) / "mods" / folder / "mod.json");
-                auto j = nlohmann::json::parse(f, nullptr, false, true);
-                if (j.is_object()) {
-                    info.title = j.value("title", folder);
-                    info.description = j.value("description", "");
-                    info.author = j.value("author", "");
-                }
-                std::error_code ec;
-                for (auto& e : std::filesystem::directory_iterator(std::filesystem::path(vfs::Root()) / "mods" / folder / "plugins", ec)) {
-                    std::string ext = ToLower(e.path().extension().string());
-                    if (ext == ".dll" || ext == ".so" || ext == ".dylib") info.nativePlugins++;
-                }
-                m_modList.push_back(info);
-            }
-        }
-        if (MenuItem(Tr("Options"), idx++, x, y + step * 4, size)) {
-            m_page = MenuPage::Options;
-            m_menuSel = 0;
-        }
-        if (MenuItem(Tr("Quit"), idx++, x, y + step * 5, size)) m_quit = true;
-        std::string mod = vfs::CurrentMod().empty() ? "base" : vfs::CurrentMod();
-        fonts::Text("ui", TextFormat("v%s   mod: %s   F1 = %s", RBS_VERSION, mod.c_str(), Tr("console")), 16, h - 30.0f, 16, kDim);
+        for (int i = 0; i < n; ++i)
+            if (MenuItem(items[i].label, i, x, y + step * i, size)) items[i].action();
+        std::string footer = proj.folder.empty() ? std::string(TextFormat("RBS Engine v%s", RBS_VERSION))
+                                                 : proj.title + (proj.version.empty() ? "" : " " + proj.version) + TextFormat("   -   made with RBS Engine v%s", RBS_VERSION);
+        if (project::LaunchConfig().console) footer += TextFormat("   F1 = %s", Tr("console"));
+        fonts::Text("ui", footer.c_str(), 16, h - 30.0f, 16, kDim);
         return;
     }
 
@@ -567,7 +670,7 @@ void App::DrawMenu(int w, int h) {
         }
         if (MenuItem(Tr("Back"), n - 1, x, y + (n - 1) * 40 + 10, 28)) {
             m_page = MenuPage::Main;
-            m_menuSel = 3;
+            m_menuSel = ShowEditorInMenu() ? 3 : 2;  // back on the Mods item
         }
         float infoY = (float)y + n * 40 + 40;
         if (m_menuSel == 0) {

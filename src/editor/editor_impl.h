@@ -99,6 +99,27 @@ struct Editor::Impl {
     std::string newPropKey, newPropValue;
     std::string clipboard;
 
+    // ---- projects and definitions made without code (editor_project.cpp) ----
+    std::string inspectKind, inspectName;  // asset shown in the Inspector: "class" or "weapon"
+    json assetDef;                         // definition file being edited
+    std::string assetPath;                 // "entities/x.json" / "weapons/x.json"
+    bool assetDirty = false, assetConfirmDelete = false;
+    std::vector<std::string> weaponIds;
+    json weaponFields;  // rbs.weapon_fields: enums + help for the weapon inspector
+    json projEdit;      // project manifest being edited in the Project dialog
+    std::string projName, projTitle, projOpen, projMessage;
+    bool projDemoMaps = false;
+    std::string newDefName, newDefBase;
+    std::string pendingProject, pendingProjectMap;  // switched at the start of the next frame
+    void SelectAsset(const std::string& kind, const std::string& name);
+    float InspectAsset(Rectangle r, float y);
+    void SaveAsset();
+    void DeleteAsset();
+    bool CreateDefinition(const std::string& kind, const std::string& name, const std::string& base);
+    std::vector<std::string> VariantBases() const;
+    void OpenProjectDialog();
+    void DrawProjectDialog(int w, int h);  // dialog kinds: project, newproject, newtype, newweapon
+
     // ---- core (editor.cpp) ----
     void Init();
     void RefreshClasses();
@@ -180,7 +201,10 @@ struct Editor::Impl {
     float InspectBrushes(Rectangle r, float y);
     float InspectFaces(Rectangle r, float y);
     float InspectMap(Rectangle r, float y);
-    float PropEditor(const std::string& id, Rectangle r, float y, json& props, const json& defaults, bool allowRemove);
+    // enums: property -> allowed values (dropdown), help: property -> tooltip. With
+    // assetChanged set, edits are for a definition file: no map undo/dirty, the flag is set.
+    float PropEditor(const std::string& id, Rectangle r, float y, json& props, const json& defaults, bool allowRemove,
+                     const json* enums = nullptr, const json* help = nullptr, bool* assetChanged = nullptr);
     void HandleShortcuts();
 };
 

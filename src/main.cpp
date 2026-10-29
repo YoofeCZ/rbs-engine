@@ -7,14 +7,19 @@
 //   rbs --screenshot out.png [--frames N] [--exec "cmd; cmd"]   automated capture
 #include "app/app.h"
 #include "core/log.h"
+#include "core/project.h"
 #include "core/vfs.h"
+#include "script/dynlib.h"
 
 #include <cstdio>
 #include <cstring>
 
 int main(int argc, char** argv) {
     rbs::LogInit();
-    if (!rbs::vfs::Init(argc > 0 ? argv[0] : nullptr)) {
+    // argv[0] can be a bare name found through PATH, so ask the OS where the executable is
+    std::string exe = rbs::dynlib::ExecutablePath();
+    if (exe.empty() && argc > 0) exe = argv[0];
+    if (!rbs::vfs::Init(exe.c_str())) {
         fprintf(stderr, "RBS Engine: cannot find the game data folder (base/). Run from the engine folder.\n");
         return 1;
     }
@@ -39,6 +44,9 @@ int main(int argc, char** argv) {
             return 0;
         }
     }
+    // a standalone game build starts its project (launch.json next to base/)
+    rbs::project::LoadLaunch();
+    if (opt.mod.empty()) opt.mod = rbs::project::LaunchConfig().project;
     if (!opt.mod.empty()) rbs::vfs::SetMod(opt.mod);
     rbs::App app;
     if (!app.Init(opt)) return 1;

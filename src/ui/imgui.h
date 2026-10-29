@@ -33,6 +33,10 @@ bool MouseOverUI();       // mouse is over a registered panel or popup (from the
 bool KeyboardCaptured();  // a text field has focus
 void Block(Rectangle r);  // register a rectangle that blocks viewport input
 void ClearFocus();
+// Widgets drawn between these take all mouse input; the rest of the UI ignores the mouse
+// while the modal is open. Draw the modal after everything else in the frame.
+void BeginModal();
+void EndModal();
 
 // drawing helpers
 void Fill(Rectangle r, Color c);

@@ -17,3 +17,4 @@ require "monsters.fiend"
 require "components.common"
 require "game"
 require "hud"
+require "definitions"  -- loads entities/*.json and weapons/*.json once all scripts are in

@@ -1,4 +1,6 @@
--- Projectiles fired by weapons and monsters.
+-- Projectiles fired by weapons and monsters. Whoever fires one can set its damage
+-- afterwards (projectile.hit_damage = n), which is how weapons and monsters configured in the
+-- editor change it.
 
 rbs.class("plasma_bolt", {
   spawn = function(self)
@@ -12,7 +14,7 @@ rbs.class("plasma_bolt", {
     self.fullbright = true
     self.light_color = vec(0.3, 0.6, 1.6)
     self.light_radius = 160
-    self.damage = 18
+    self.hit_damage = self.hit_damage or 18
     self.die_at = rbs.time() + 4
   end,
   update = function(self)
@@ -20,7 +22,7 @@ rbs.class("plasma_bolt", {
   end,
   touch = function(self, other, normal)
     if other and other.takedamage then
-      rbs.damage(other, self.damage, self.owner, self.vel:normalize())
+      rbs.damage(other, self.hit_damage, self.owner, self.vel:normalize())
       if other.monster then rbs.blood(self.pos, normal, 6) end
     else
       rbs.decal(self.pos + normal * 2, self.pos - normal * 8, "decals/scorch.png", 14, {r = 60, g = 120, b = 255, a = 200})
@@ -51,8 +53,8 @@ rbs.class("rocket", {
       life = 0.9, gravity = -0.1, drag = 1, growth = 18, texture = "sprites/smoke.png" })
   end,
   touch = function(self, other, normal)
-    if other and other.takedamage then rbs.damage(other, 80, self.owner, self.vel:normalize()) end
-    rbs.explosion(self.pos + normal * 4, 150, 110, self.owner)
+    if other and other.takedamage then rbs.damage(other, self.hit_damage or 80, self.owner, self.vel:normalize()) end
+    rbs.explosion(self.pos + normal * 4, self.splash_radius or 150, self.splash_damage or 110, self.owner)
     rbs.remove(self)
   end,
 })
@@ -78,7 +80,7 @@ rbs.class("fireball", {
       gravity = -0.2, additive = true, growth = -10, texture = "sprites/fire.png" })
   end,
   touch = function(self, other, normal)
-    if other and other.takedamage then rbs.damage(other, 15, self.owner, self.vel:normalize()) end
+    if other and other.takedamage then rbs.damage(other, self.hit_damage or 15, self.owner, self.vel:normalize()) end
     rbs.particles(self.pos, normal, { count = 14, color = {255, 150, 50}, speed = 150, size = 6, life = 0.4,
       gravity = 0.2, additive = true, texture = "sprites/fire.png" })
     rbs.light(self.pos, vec(1.6, 0.7, 0.2), 160, 0.2)

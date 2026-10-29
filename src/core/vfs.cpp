@@ -23,14 +23,16 @@ static void RebuildLayers() {
     g_layers.push_back((fs::path(g_root) / "base").string());
 }
 
-bool Init(const char* argv0) {
+bool Init(const char* exePath) {
     std::vector<fs::path> starts;
     std::error_code ec;
+    fs::path exeDir;
+    if (exePath && *exePath) exeDir = fs::absolute(fs::path(exePath), ec).parent_path();
+    // an exported game (launch.json next to the executable) always runs on its own data,
+    // whatever folder it is started from
+    if (!exeDir.empty() && fs::exists(exeDir / "launch.json", ec)) starts.push_back(exeDir);
     starts.push_back(fs::current_path(ec));
-    if (argv0 && *argv0) {
-        fs::path exe = fs::absolute(fs::path(argv0), ec);
-        starts.push_back(exe.parent_path());
-    }
+    if (!exeDir.empty()) starts.push_back(exeDir);
     for (auto start : starts) {
         fs::path p = start;
         for (int i = 0; i < 6 && !p.empty(); ++i) {

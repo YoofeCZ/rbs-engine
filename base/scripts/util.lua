@@ -37,3 +37,35 @@ function util.near_brush(ent, p, pad)
 end
 
 function util.choose(list) return list[math.random(1, #list)] end
+
+-- Copies properties (editor values + type defaults, from self.props) onto the entity so
+-- behaviour code can read them as self.<name>. `keys` is a list or a set of names.
+-- Appearance keys (model, scale, tint) go straight to the engine.
+function util.apply_props(self, keys)
+  local props = self.props
+  local function apply(k)
+    local v = props[k]
+    if v == nil then return end
+    if k == "model" then
+      if v ~= "" then self.model = v end
+    else
+      self[k] = v
+    end
+  end
+  if keys[1] ~= nil then
+    for _, k in ipairs(keys) do apply(k) end
+  else
+    for k in pairs(keys) do apply(k) end
+  end
+end
+
+-- Merges tables into a new one (later ones win). Used to build editor property lists.
+function util.merge(...)
+  local out = {}
+  for i = 1, select("#", ...) do
+    local t = select(i, ...)
+    if t then for k, v in pairs(t) do out[k] = v end end
+  end
+  return out
+end
+

@@ -51,6 +51,13 @@ void Editor::OnReturnFromPlay() {
 }
 
 void Editor::Update(float dt, bool consoleHasFocus) {
+    if (!m->pendingProject.empty()) {
+        // switching projects reloads every asset, so it happens outside of drawing
+        std::string folder = m->pendingProject, map = m->pendingProjectMap;
+        m->pendingProject.clear();
+        m->app->SwitchProject(folder, true, map);
+        return;
+    }
     if (IsCursorHidden() && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) EnableCursor();
     m->UpdateBake();
     m->HandleDroppedFiles();
@@ -77,8 +84,14 @@ void Editor::Draw(int w, int h) {
     m->DrawInspector({w - right, tb, right, h - tb - sb});
     m->DrawBottom({left, h - sb - bottom, w - left - right, bottom});
     m->DrawStatusBar({0, h - sb, (float)w, sb});
-    m->DrawDialogs(w, h);
+    // dialogs and the bake progress are modal: the panels under them ignore the mouse
+    if (!m->dialog.empty()) {
+        ui::BeginModal();
+        m->DrawDialogs(w, h);
+        ui::EndModal();
+    }
     if (m->baking) {
+        ui::BeginModal();
         Rectangle r{w * 0.5f - 200, h * 0.5f - 40, 400, 80};
         ui::Fill({0, 0, (float)w, (float)h}, Color{0, 0, 0, 120});
         ui::Fill(r, ui::theme.panelAlt);
@@ -86,7 +99,7 @@ void Editor::Draw(int w, int h) {
         ui::Text("Baking lighting...", r.x + 16, r.y + 14, ui::theme.text, 16, "ui_bold");
         ui::Fill({r.x + 16, r.y + 46, r.width - 32, 12}, ui::theme.field);
         ui::Fill({r.x + 16, r.y + 46, (r.width - 32) * m->lightmap.Progress(), 12}, ui::theme.accent);
-        ui::Block({0, 0, (float)w, (float)h});
+        ui::EndModal();
     }
     ui::EndFrame();
 }
@@ -130,6 +143,10 @@ void Editor::Impl::RefreshClasses() {
     for (auto& c : classes) classNames.push_back(c.name);
     componentNames.clear();
     for (auto& c : components) componentNames.push_back(c.name);
+    weaponIds.clear();
+    for (auto& w : script.weapons) weaponIds.push_back(w.id);
+    weaponFields = script.LuaJson("weapon_fields");
+    if (!weaponFields.is_object()) weaponFields = json::object();
 }
 
 void Editor::Impl::RefreshLists(bool force) {
@@ -223,7 +240,7 @@ std::string Editor::Impl::ImportFile(const std::string& srcPath, int& count) {
     } else if (ext == ".json") {
         std::ifstream f(src);
         json j = json::parse(f, nullptr, false, true);
-        std::string format = j.is_object() ? j.value("format", "") : "";
+        std::string format = j.is_object() && j.contains("format") && j["format"].is_string() ? j["format"].get<std::string>() : "";
         if (format == "rbs-map") folder = "maps", type = "map";
         else if (format == "rbs-prefab") folder = "prefabs", type = "prefab";
         else if (j.is_object() && src.parent_path().filename() == "textures") folder = "textures";  // texture meta
@@ -292,31 +309,7 @@ void Editor::Impl::ImportPaths(const std::vector<std::string>& paths, bool place
 }
 
 void Editor::Impl::NewMap() {
-    map.Clear();
-    map.settings.title = "Untitled";
-    map.settings.sunIntensity = 0.0f;
-    map.settings.ambient = {0.12f, 0.11f, 0.1f};
-    // a starter room so a new map is never empty
-    const float s = 512, h = 256, t = 16;
-    auto add = [&](Vector3 a, Vector3 b, const char* tex) { map.brushes.push_back(MakeBoxBrush(a, b, tex)); };
-    add({-s - t, -t, -s - t}, {s + t, 0, s + t}, "concrete");
-    add({-s - t, h, -s - t}, {s + t, h + t, s + t}, "concrete_panel");
-    add({-s - t, 0, -s - t}, {-s, h, s + t}, "brick_red");
-    add({s, 0, -s - t}, {s + t, h, s + t}, "brick_red");
-    add({-s, 0, -s - t}, {s, h, -s}, "brick_red");
-    add({-s, 0, s}, {s, h, s + t}, "brick_red");
-    MapEntity ps;
-    ps.classname = "player_start";
-    ps.origin = {0, 40, 300};
-    ps.angle = 90;
-    map.entities.push_back(ps);
-    for (float x : {-250.0f, 250.0f}) {
-        MapEntity l;
-        l.classname = "light";
-        l.origin = {x, 200, 0};
-        l.props = {{"color", {255, 220, 180}}, {"intensity", 1.2}, {"radius", 500}};
-        map.entities.push_back(l);
-    }
+    map.MakeStarterRoom();
     path.clear();
     dirty = false;
     undo.clear();

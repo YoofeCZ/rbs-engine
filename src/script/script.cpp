@@ -1,6 +1,7 @@
 #include "script/script.h"
 #include "core/cvar.h"
 #include "core/log.h"
+#include "core/project.h"
 #include "core/vfs.h"
 #include "game/game.h"
 #include "render/assets.h"
@@ -139,6 +140,8 @@ function rbs._new_component(name, ent, props)
 end
 
 function rbs.weapon(def)
+  -- weapons without their own fire() use the built-in shots (rbs.fire_weapon, weapons.lua)
+  if def.fire == nil then def.fire = function(player, w) return rbs.fire_weapon(player, w) end end
   rbs.weapons[def.id] = def
   rbs._register_weapon(def)
   return def
@@ -260,7 +263,13 @@ static void PushColor(lua_State* L, Color c) {
     lua_setfield(L, -2, "a");
 }
 
-static void PushJson(lua_State* L, const json& j) {
+static void PushJson(lua_State* L, const json& j, int depth = 0) {
+    // every nesting level holds Lua stack slots: data nested deeper than any real file is cut off
+    lua_checkstack(L, 2);
+    if (depth > 32) {
+        lua_pushnil(L);
+        return;
+    }
     switch (j.type()) {
         case json::value_t::null: lua_pushnil(L); break;
         case json::value_t::boolean: lua_pushboolean(L, j.get<bool>()); break;
@@ -272,7 +281,7 @@ static void PushJson(lua_State* L, const json& j) {
             lua_createtable(L, (int)j.size(), 0);
             int i = 1;
             for (auto& v : j) {
-                PushJson(L, v);
+                PushJson(L, v, depth + 1);
                 lua_rawseti(L, -2, i++);
             }
             break;
@@ -280,7 +289,7 @@ static void PushJson(lua_State* L, const json& j) {
         case json::value_t::object: {
             lua_createtable(L, 0, (int)j.size());
             for (auto it = j.begin(); it != j.end(); ++it) {
-                PushJson(L, it.value());
+                PushJson(L, it.value(), depth + 1);
                 lua_setfield(L, -2, it.key().c_str());
             }
             break;
@@ -748,7 +757,24 @@ static int L_register_class(lua_State* L) {
         if (lua_istable(L, -1)) ci.props = ToJson(L, -1);
         if (!ci.props.is_object()) ci.props = json::object();
         lua_pop(L, 1);
+        lua_getfield(L, ed, "enums");
+        if (lua_istable(L, -1)) ci.enums = ToJson(L, -1);
+        if (!ci.enums.is_object()) ci.enums = json::object();
+        lua_pop(L, 1);
+        lua_getfield(L, ed, "help");
+        if (lua_istable(L, -1)) ci.help = ToJson(L, -1);
+        if (!ci.help.is_object()) ci.help = json::object();
+        lua_pop(L, 1);
     }
+    lua_pop(L, 1);
+    // raw lookups: these must not be inherited from the base class through the metatable
+    lua_pushstring(L, "base");
+    lua_rawget(L, 2);
+    if (lua_isstring(L, -1)) ci.base = lua_tostring(L, -1);
+    lua_pop(L, 1);
+    lua_pushstring(L, "definition");
+    lua_rawget(L, 2);
+    if (lua_isstring(L, -1)) ci.definition = lua_tostring(L, -1);
     lua_pop(L, 1);
     for (auto& c : s->classes) {
         if (c.name == ci.name) {
@@ -775,6 +801,14 @@ static int L_register_component(lua_State* L) {
         lua_getfield(L, ed, "props");
         if (lua_istable(L, -1)) ci.props = ToJson(L, -1);
         if (!ci.props.is_object()) ci.props = json::object();
+        lua_pop(L, 1);
+        lua_getfield(L, ed, "enums");
+        if (lua_istable(L, -1)) ci.enums = ToJson(L, -1);
+        if (!ci.enums.is_object()) ci.enums = json::object();
+        lua_pop(L, 1);
+        lua_getfield(L, ed, "help");
+        if (lua_istable(L, -1)) ci.help = ToJson(L, -1);
+        if (!ci.help.is_object()) ci.help = json::object();
         lua_pop(L, 1);
     }
     lua_pop(L, 1);
@@ -810,6 +844,7 @@ static int L_register_weapon(lua_State* L) {
     w.flashColor = OptFieldV(L, 1, "flash_color", w.flashColor);
     w.flashSize = OptFieldF(L, 1, "flash_size", w.flashSize);
     w.startAmmo = (int)OptFieldF(L, 1, "start_ammo", 0);
+    w.definition = OptFieldS(L, 1, "definition", "");
     lua_pushvalue(L, 1);
     w.luaRef = luaL_ref(L, LUA_REGISTRYINDEX);
     for (auto& existing : s->weapons) {
@@ -1265,6 +1300,48 @@ static int L_read_file(lua_State* L) {
     return 1;
 }
 
+// rbs.list_files("entities", ".json") -> sorted relative paths from every layer (base + project)
+static int L_list_files(lua_State* L) {
+    std::string dir = luaL_checkstring(L, 1);
+    std::string ext = luaL_optstring(L, 2, "");
+    bool recursive = lua_toboolean(L, 3);
+    lua_newtable(L);
+    if (!SafeGamePath(dir)) return 1;
+    int i = 1;
+    for (auto& f : vfs::List(dir, ext, recursive)) {
+        lua_pushstring(L, f.c_str());
+        lua_rawseti(L, -2, i++);
+    }
+    return 1;
+}
+
+// rbs.json_decode(text) -> value, or nil + error message
+static int L_json_decode(lua_State* L) {
+    size_t len = 0;
+    const char* text = luaL_checklstring(L, 1, &len);
+    json j = json::parse(text, text + len, nullptr, false, true);
+    if (j.is_discarded()) {
+        lua_pushnil(L);
+        lua_pushstring(L, "invalid JSON");
+        return 2;
+    }
+    PushJson(L, j);
+    return 1;
+}
+
+// rbs.json_encode(value) -> text
+static int L_json_encode(lua_State* L) {
+    json j = ToJson(L, 1);
+    lua_pushstring(L, j.dump(2).c_str());
+    return 1;
+}
+
+// rbs.project() -> the game's manifest (mod.json) as a table ({} for the base game)
+static int L_project(lua_State* L) {
+    PushJson(L, project::Current().manifest);
+    return 1;
+}
+
 // ---- 2D drawing (HUD) --------------------------------------------------------------
 static int L_screen(lua_State* L) {
     lua_pushinteger(L, GetScreenWidth());
@@ -1348,7 +1425,8 @@ static const luaL_Reg kApi[] = {
     {"hud_info", L_hud_info}, {"light_at", L_light_at}, {"read_file", L_read_file},
     {"model_bounds", L_model_bounds}, {"add_component", L_add_component}, {"screen", L_screen},
     {"draw_text", L_draw_text}, {"text_width", L_text_width}, {"draw_rect", L_draw_rect},
-    {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {nullptr, nullptr}};
+    {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {"list_files", L_list_files},
+    {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class
@@ -1461,6 +1539,16 @@ bool Script::Init(Game* g) {
             continue;
         }
         CallFunction(0, rel.c_str());
+        lua_pop(L, 1);
+    }
+    // enemy/item types and weapons made without code (entities/*.json, weapons/*.json)
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, "_load_definitions");
+    lua_remove(L, -2);
+    if (lua_isfunction(L, -1)) {
+        CallFunction(0, "definitions");
+        lua_pop(L, 1);
+    } else {
         lua_pop(L, 1);
     }
     LOG_INFO("Scripts loaded: %d entity classes, %d weapons", (int)classes.size(), (int)weapons.size());
@@ -1615,6 +1703,41 @@ void Script::CompBlocked(Entity* e, Component& c, Entity* other) {
     PushEntity(L, other);
     CallFunction(3, "component blocked");
     lua_pop(L, 1);
+}
+
+json Script::WeaponData(const std::string& id) const {
+    json out = json::object();
+    if (!L) return out;
+    int idx = WeaponIndex(id);
+    if (idx < 0) return out;
+    lua_rawgeti(L, LUA_REGISTRYINDEX, weapons[idx].luaRef);
+    if (lua_istable(L, -1)) {
+        json j = ToJson(L, -1);
+        if (j.is_object())
+            for (auto it = j.begin(); it != j.end(); ++it)
+                if (!it.value().is_null() && it.key() != "definition" && it.key() != "id") out[it.key()] = it.value();  // functions come out as null
+    }
+    lua_pop(L, 1);
+    return out;
+}
+
+json Script::LuaJson(const char* field) const {
+    if (!L) return nullptr;
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, field);
+    json j = lua_istable(L, -1) ? ToJson(L, -1) : json();
+    lua_pop(L, 2);
+    return j;
+}
+
+bool Script::IsA(const std::string& cls, const std::string& base) const {
+    std::string c = cls;
+    for (int depth = 0; depth < 32 && !c.empty(); ++depth) {
+        if (c == base) return true;
+        const ClassInfo* ci = FindClass(c);
+        c = ci ? ci->base : "";
+    }
+    return false;
 }
 
 int Script::WeaponIndex(const std::string& id) const {

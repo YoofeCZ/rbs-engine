@@ -51,6 +51,8 @@ struct Map {
     std::vector<MapEntity> entities;
 
     void Clear();
+    // A small lit room with a player start, so a new map is never empty.
+    void MakeStarterRoom();
     json ToJson() const;
     bool FromJson(const json& j, std::string* err = nullptr);
     bool Load(const std::string& relPath, std::string* err = nullptr);  // via VFS

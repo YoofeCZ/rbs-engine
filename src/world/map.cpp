@@ -51,6 +51,33 @@ void Map::Clear() {
     entities.clear();
 }
 
+void Map::MakeStarterRoom() {
+    Clear();
+    settings.title = "Untitled";
+    settings.sunIntensity = 0.0f;
+    settings.ambient = {0.12f, 0.11f, 0.1f};
+    const float s = 512, h = 256, t = 16;
+    auto add = [&](Vector3 a, Vector3 b, const char* tex) { brushes.push_back(MakeBoxBrush(a, b, tex)); };
+    add({-s - t, -t, -s - t}, {s + t, 0, s + t}, "concrete");
+    add({-s - t, h, -s - t}, {s + t, h + t, s + t}, "concrete_panel");
+    add({-s - t, 0, -s - t}, {-s, h, s + t}, "brick_red");
+    add({s, 0, -s - t}, {s + t, h, s + t}, "brick_red");
+    add({-s, 0, -s - t}, {s, h, -s}, "brick_red");
+    add({-s, 0, s}, {s, h, s + t}, "brick_red");
+    MapEntity ps;
+    ps.classname = "player_start";
+    ps.origin = {0, 40, 300};
+    ps.angle = 90;
+    entities.push_back(ps);
+    for (float x : {-250.0f, 250.0f}) {
+        MapEntity l;
+        l.classname = "light";
+        l.origin = {x, 200, 0};
+        l.props = {{"color", {255, 220, 180}}, {"intensity", 1.2}, {"radius", 500}};
+        entities.push_back(l);
+    }
+}
+
 static json FaceToJson(const BrushFace& f) {
     json j;
     j["n"] = Vec3ToJson(f.plane.n);
@@ -167,7 +194,9 @@ bool Map::FromJson(const json& j, std::string* err) {
                 e.origin = JsonToVec3(je.value("origin", json()), {0, 0, 0});
                 e.angle = je.value("angle", 0.0f);
                 if (je.contains("props") && je["props"].is_object()) e.props = je["props"];
-                if (je.contains("components") && je["components"].is_array()) e.components = je["components"];
+                if (je.contains("components") && je["components"].is_array())
+                    for (auto& c : je["components"])
+                        if (c.is_object() && c.contains("type") && c["type"].is_string()) e.components.push_back(c);
                 int idx = (int)entities.size();
                 entities.push_back(e);
                 if (je.contains("brushes")) {

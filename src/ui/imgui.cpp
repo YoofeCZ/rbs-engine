@@ -52,6 +52,8 @@ struct State {
     Vector2 lastClickPos{};
     bool doubleClick = false;
     bool mouseConsumed = false;
+    // modal dialog: open this frame / last frame, widgets being drawn inside it
+    bool modalNow = false, modalPrev = false, inModal = false;
 };
 State S;
 
@@ -73,6 +75,8 @@ bool PopupCovers(Vector2 p);
 void BeginFrame() {
     S.prevBlockers = S.blockers;
     S.blockers.clear();
+    S.modalPrev = S.modalNow;
+    S.modalNow = S.inModal = false;
     S.tooltip.clear();
     S.dragReleased = false;
     S.doubleClick = false;
@@ -160,6 +164,12 @@ bool MouseOverUI() {
 
 bool KeyboardCaptured() { return !S.focusId.empty(); }
 void Block(Rectangle r) { S.blockers.push_back(r); }
+
+void BeginModal() {
+    S.modalNow = S.inModal = true;
+    S.blockers.push_back({0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()});
+}
+void EndModal() { S.inModal = false; }
 void ClearFocus() { S.focusId.clear(); }
 
 void Fill(Rectangle r, Color c) { DrawRectangleRec(r, c); }
@@ -200,6 +210,10 @@ bool PopupCovers(Vector2 p) {
 }  // namespace
 
 bool Hovered(Rectangle r) {
+    // While a modal dialog is open (it is drawn last, so this is known from the previous
+    // frame) only its own widgets take the mouse. On the frame it opens it ignores the
+    // mouse too, so the click that opened it cannot also press something in it.
+    if (S.inModal != S.modalPrev) return false;
     Vector2 m = GetMousePosition();
     return CheckCollisionPointRec(m, r) && InClip(m) && !PopupCovers(m);
 }
@@ -319,10 +333,17 @@ bool TextField(const std::string& id, Rectangle r, std::string& value, const cha
     return committed && value != before;
 }
 
+// "%.0f" turns -0.2 (or a snapped -0) into "-0": drop the sign when only zeros follow
+static std::string FormatNumber(const char* fmt, float v) {
+    std::string s = TextFormat(fmt, v);
+    if (!s.empty() && s[0] == '-' && s.find_first_not_of("0.", 1) == std::string::npos) s.erase(0, 1);
+    return s;
+}
+
 bool FloatField(const std::string& id, Rectangle r, float& v, float speed, const char* fmt) {
     std::string fid = FullId(id);
     if (S.focusId == fid) {
-        std::string s = TextFormat(fmt, v);
+        std::string s = FormatNumber(fmt, v);
         bool committed = false;
         EditText(fid, r, s, nullptr, &committed);
         if (committed) {
@@ -356,7 +377,7 @@ bool FloatField(const std::string& id, Rectangle r, float& v, float speed, const
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
             if (!S.dragMoved) {
                 S.focusId = fid;
-                S.editBuffer = TextFormat(fmt, v);
+                S.editBuffer = FormatNumber(fmt, v);
                 S.cursor = (int)S.editBuffer.size();
             }
             S.dragFloatId.clear();
@@ -364,7 +385,7 @@ bool FloatField(const std::string& id, Rectangle r, float& v, float speed, const
     }
     Fill(r, theme.field);
     Outline(r, hov || S.dragFloatId == fid ? theme.buttonHover : theme.border);
-    TextCentered(TextFormat(fmt, v), r, theme.text);
+    TextCentered(FormatNumber(fmt, v), r, theme.text);
     if (hov) SetMouseCursor(MOUSE_CURSOR_RESIZE_EW);
     return changed;
 }
