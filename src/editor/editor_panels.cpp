@@ -63,8 +63,10 @@ void Editor::Impl::DrawToolbar(Rectangle r) {
     }
     if (btn("saveas", "Save As", 64)) dialog = "saveas", dialogText = path.empty() ? "mymap" : std::filesystem::path(path).stem().string();
     sep();
-    if (btn("undo", "Undo", 48, false, !undo.empty())) Undo();
-    if (btn("redo", "Redo", 48, false, !redo.empty())) Redo();
+    // with a graph open, Undo / Redo act on that graph; on the Level tab on the map
+    Document* gd = Doc();
+    if (btn("undo", "Undo", 48, false, gd ? !gd->undo.empty() || gd->stamp != gd->committed : !undo.empty())) gd ? DocUndo(*gd) : Undo();
+    if (btn("redo", "Redo", 48, false, gd ? !gd->redo.empty() : !redo.empty())) gd ? DocRedo(*gd) : Redo();
     sep();
     struct T {
         Tool t;

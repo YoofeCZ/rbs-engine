@@ -66,6 +66,11 @@ struct Document {
     double previewStart = 0;
     bool previewMax = false;
     std::string previewInfo;
+    // undo / redo: snapshots of def, one per finished edit (see Editor::Impl::UpdateUndo)
+    json snap;
+    std::vector<json> undo, redo;
+    int stamp = 0, committed = 0;  // stamp counts edits; committed is the last one stored in undo
+    int pasteN = 0;                // pastes since the last copy: each lands a bit further down
 };
 
 struct Editor::Impl {
@@ -172,6 +177,28 @@ struct Editor::Impl {
     void ReleaseDocuments();
     void RefreshAnimatorList();
     std::vector<std::string> AnimatorOptions() const;  // "(none)" + files, for the animator property
+    // undo / redo and clipboard of graph documents (editor_graph_edit.cpp)
+    std::string graphClipboard;
+    void UpdateUndo(Document& d);  // call every frame: stores a snapshot when an edit is finished
+    void DocUndo(Document& d);
+    void DocRedo(Document& d);
+    void DocCopy(Document& d, bool cut);
+    void DocPaste(Document& d);
+    void DocDuplicate(Document& d);
+    void DocDeleteSelected(Document& d);
+    // scripted editing shared by the animator / behavior / flow console commands: undo, redo, commit,
+    // copy, cut, paste, duplicate, select_idx <i>..., delete_selected, undo_depth. "" = not one of those.
+    std::string DocCommand(Document& d, const std::vector<std::string>& a);
+    // per kind (in the editor_*.cpp of each graph): the selected nodes as JSON, pasting such JSON, deleting the selection
+    json CopyAnimatorSelection(Document& d);
+    void PasteAnimator(Document& d, const json& clip);
+    void DeleteAnimatorSelection(Document& d);
+    json CopyBehaviorSelection(Document& d);
+    void PasteBehavior(Document& d, const json& clip);
+    void DeleteBehaviorSelection(Document& d);
+    json CopyFlowSelection(Document& d);
+    void PasteFlow(Document& d, const json& clip);
+    void DeleteFlowSelection(Document& d);
     void RefreshFlowLists();
     std::vector<std::string> QuestOptions() const;
     std::vector<std::string> DialogueOptions() const;

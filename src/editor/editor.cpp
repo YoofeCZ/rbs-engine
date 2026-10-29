@@ -66,8 +66,18 @@ void Editor::Update(float dt, bool consoleHasFocus) {
     bool keyboardFree = !consoleHasFocus && !ui::KeyboardCaptured() && m->dialog.empty();
     if (keyboardFree && m->activeDoc < 0) m->HandleShortcuts();
     if (m->dialog.empty() && m->activeDoc < 0) m->UpdateViews(keyboardFree);
-    if (keyboardFree && m->activeDoc >= 0 && IsKeyPressed(KEY_S) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER)))
-        m->SaveDocument(*m->Doc());
+    if (keyboardFree && m->activeDoc >= 0) {
+        bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
+        bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+        Document& d = *m->Doc();
+        if (ctrl && IsKeyPressed(KEY_S)) m->SaveDocument(d);
+        else if (ctrl && IsKeyPressed(KEY_Z)) shift ? m->DocRedo(d) : m->DocUndo(d);
+        else if (ctrl && IsKeyPressed(KEY_Y)) m->DocRedo(d);
+        else if (ctrl && IsKeyPressed(KEY_C)) m->DocCopy(d, false);
+        else if (ctrl && IsKeyPressed(KEY_X)) m->DocCopy(d, true);
+        else if (ctrl && IsKeyPressed(KEY_V)) m->DocPaste(d);
+        else if (ctrl && IsKeyPressed(KEY_D)) m->DocDuplicate(d);
+    }
     if (m->meshDirty) {
         m->world.Build(m->map, nullptr, true);
         m->meshDirty = false;
@@ -111,6 +121,7 @@ void Editor::Draw(int w, int h) {
         ui::Fill({r.x + 16, r.y + 46, (r.width - 32) * m->lightmap.Progress(), 12}, ui::theme.accent);
         ui::EndModal();
     }
+    if (m->Doc()) m->UpdateUndo(*m->Doc());  // after every panel had its say in this frame
     ui::EndFrame();
 }
 

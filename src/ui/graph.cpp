@@ -145,6 +145,13 @@ static void DrawArrowHead(Vector2 tip, Vector2 dir, float size, Color c) {
 Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& nodes, const std::vector<Link>& links) {
     Events ev;
     Vector2 mouse = GetMousePosition();
+    // a document that sets selNode itself (a new node, a click in the Inspector) selects only that node
+    if (v.selNode != v.lastSelNode) {
+        v.selNodes.clear();
+        if (v.selNode >= 0) v.selNodes.insert(v.selNode);
+        v.lastSelNode = v.selNode;
+    }
+    bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
     auto excluded = [&](Vector2 p) {
         for (auto& e : v.exclude)
             if (CheckCollisionPointRec(p, e)) return true;
@@ -272,24 +279,54 @@ Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& node
                 v.linkFromPort = pinPort;
                 if (v.selNode != pin) ev.selectionChanged = true;
                 v.selNode = pin;
+                v.selNodes = {pin};
                 v.selLink = -1;
             } else if (node >= 0) {
-                if (v.selNode != node || v.selLink >= 0) ev.selectionChanged = true;
-                v.selNode = node;
+                if (v.selNode != node || v.selLink >= 0 || v.selNodes.size() > 1) ev.selectionChanged = true;
                 v.selLink = -1;
-                const Node* n = FindNode(nodes, node);
-                if (n && n->movable) {
-                    v.dragNode = node;
-                    Vector2 g = ToGraph(v, r, mouse);
-                    v.grab = {g.x - n->pos.x, g.y - n->pos.y};
+                if (shift) {
+                    // shift-click adds the node to the selection, or takes it out
+                    if (v.selNodes.count(node)) {
+                        v.selNodes.erase(node);
+                        v.selNode = v.selNodes.empty() ? -1 : *v.selNodes.rbegin();
+                    } else {
+                        v.selNodes.insert(node);
+                        v.selNode = node;
+                    }
+                } else {
+                    if (!v.selNodes.count(node)) v.selNodes = {node};  // a click inside a selection keeps it (to drag the group)
+                    v.selNode = node;
                 }
+                v.grabs.clear();
+                Vector2 g = ToGraph(v, r, mouse);
+                for (int id : v.selNodes) {
+                    const Node* sn = FindNode(nodes, id);
+                    if (sn && sn->movable) v.grabs[id] = {g.x - sn->pos.x, g.y - sn->pos.y};
+                }
+                if (!v.grabs.empty() && v.selNodes.count(node)) v.dragNode = node;
                 if (DoubleClicked(r)) ev.doubleClickNode = node;
             } else {
                 int link = linkAt(mouse);
                 if (v.selLink != link || v.selNode >= 0) ev.selectionChanged = true;
                 v.selLink = link;
-                v.selNode = -1;
-                if (link < 0) v.panning = true;
+                if (link < 0) {
+                    if (IsKeyDown(KEY_SPACE)) {
+                        v.panning = true;  // space + drag moves the view
+                    } else {
+                        // drag on the empty canvas: a selection box (shift adds to the selection)
+                        v.marquee = true;
+                        v.marqueeStart = mouse;
+                        v.marqueeShift = shift;
+                        if (!shift && !v.selNodes.empty()) ev.selectionChanged = true;
+                        if (!shift) {
+                            v.selNodes.clear();
+                            v.selNode = -1;
+                        }
+                    }
+                } else {
+                    v.selNodes.clear();
+                    v.selNode = -1;
+                }
             }
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) v.panning = true;
@@ -303,10 +340,11 @@ Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& node
 
     Vector2 delta = GetMouseDelta();
     if (v.dragNode >= 0 && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        Vector2 g = ToGraph(v, r, mouse);
         for (auto& n : nodes) {
-            if (n.id != v.dragNode) continue;
-            Vector2 g = ToGraph(v, r, mouse);
-            Vector2 np{g.x - v.grab.x, g.y - v.grab.y};
+            auto it = v.grabs.find(n.id);
+            if (it == v.grabs.end()) continue;
+            Vector2 np{g.x - it->second.x, g.y - it->second.y};
             if (np.x != n.pos.x || np.y != n.pos.y) ev.moved = true;
             n.pos = np;
         }
@@ -348,11 +386,34 @@ Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& node
             v.linkFromPort = -1;
         }
         v.dragNode = -1;
+        v.grabs.clear();
+        if (v.marquee) {
+            // the selection box: every node it touches
+            Rectangle box{std::min(v.marqueeStart.x, mouse.x), std::min(v.marqueeStart.y, mouse.y), fabsf(mouse.x - v.marqueeStart.x), fabsf(mouse.y - v.marqueeStart.y)};
+            if (box.width > 3 || box.height > 3) {
+                for (auto& n : nodes)
+                    if (CheckCollisionRecs(box, NodeRect(v, r, n))) {
+                        v.selNodes.insert(n.id);
+                        v.selNode = n.id;
+                    }
+                ev.selectionChanged = true;
+            }
+            v.marquee = false;
+        }
         if (!IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) v.panning = false;
     }
     if (IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE) && !IsMouseButtonDown(MOUSE_BUTTON_LEFT)) v.panning = false;
-    if (v.focused && !KeyboardCaptured() && (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_BACKSPACE)) && (v.selNode >= 0 || v.selLink >= 0))
+    if (v.focused && !KeyboardCaptured() && (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_BACKSPACE)) && (v.selNode >= 0 || !v.selNodes.empty() || v.selLink >= 0))
         ev.deleteKey = true;
+    bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
+    if (v.focused && !KeyboardCaptured() && ctrl && IsKeyPressed(KEY_A)) {
+        v.selNodes.clear();
+        for (auto& n : nodes) v.selNodes.insert(n.id);
+        v.selNode = nodes.empty() ? -1 : nodes.back().id;
+        v.selLink = -1;
+        ev.selectionChanged = true;
+    }
+    v.lastSelNode = v.selNode;
 
     // ---- drawing ----
     PushClip(r);
@@ -402,7 +463,7 @@ Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& node
         if (n.id == hotNode) c = {(unsigned char)std::min(255, c.r + 16), (unsigned char)std::min(255, c.g + 16), (unsigned char)std::min(255, c.b + 16), c.a};
         DrawRectangleRounded(nr, 0.25f, 8, c);
         if (n.active) DrawRectangleRoundedLinesEx(nr, 0.25f, 8, 3, Color{120, 230, 140, 255});
-        if (n.id == v.selNode) DrawRectangleRoundedLinesEx(nr, 0.25f, 8, 2, Color{255, 255, 255, 235});
+        if (v.selNodes.count(n.id) || n.id == v.selNode) DrawRectangleRoundedLinesEx(nr, 0.25f, 8, n.id == v.selNode ? 2.5f : 1.5f, Color{255, 255, 255, 235});
         else if (!n.active) DrawRectangleRoundedLinesEx(nr, 0.25f, 8, 1, Color{255, 255, 255, 50});
         bool sub = !n.subtitle.empty() && z >= 0.55f;
         float th = (float)fontSize;
@@ -447,6 +508,11 @@ Events Draw(const std::string& id, Rectangle r, View& v, std::vector<Node>& node
             float len = sqrtf(d.x * d.x + d.y * d.y);
             if (len > 12) DrawArrowHead(mouse, {d.x / len, d.y / len}, 10, c);
         }
+    }
+    if (v.marquee) {
+        Rectangle box{std::min(v.marqueeStart.x, mouse.x), std::min(v.marqueeStart.y, mouse.y), fabsf(mouse.x - v.marqueeStart.x), fabsf(mouse.y - v.marqueeStart.y)};
+        Fill(box, Color{90, 140, 255, 40});
+        Outline(box, Color{120, 170, 255, 200});
     }
     PopClip();
     Outline(r, theme.border);

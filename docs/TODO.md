@@ -10,7 +10,7 @@ Ověřeno snímky skrytého editoru a skriptovanými příkazy (`animator open|c
 Zbývá:
 - animační události (`events`, `anim_event`, zvuk události) a 1D blend (`blend_param`) ve **hře** nejsou vyzkoušené (v editoru se přehrávají v náhledu)
 - tlačítko pro přehrání v Play ze záložky; po uložení se změna projeví až po novém startu mapy
-- v grafu nejde výběr více uzlů, kopírování, undo (je jen Revert)
+- (hotovo 2026-10-29) výběr více uzlů, kopírování, vkládání, Ctrl+Z – viz EDITOR.md, Grafy
 
 ## Uzlový editor grafů (základ hotový)
 Generický widget (`src/ui/graph.*`: pan/zoom, uzly, propojení tažením, mazání, kontextové menu) a záložky dokumentů ve středu editoru (`Document` v `editor_impl.h`) jsou hotové a používá je editor animátorů. Pro behavior trees a questy chybí: piny na uzlech s víc vstupy/výstupy (strom = hrany rodič → dítě v pořadí), výběr více uzlů, undo.
@@ -33,3 +33,8 @@ Hotovo (2026-10-29): `base/scripts/dialogue.lua` – **mluvčí** (jméno, barva
 Ověřeno: snímky ve hře (close-up, medium, over-shoulder, profile s orbitem, wide, výběr odpovědí, letterbox, skrytý HUD, psaní textu) a v editoru (náhled řádku i výběru, Max, nastavení). **Neověřeno:** myš v náhledu (Next / Replay / Max, klik na odpověď), portréty a emoce (demo nemá obrázky), hlasová věta `voice` na řádku, `auto` posun, uzly Camera a Animate ve hře, mluvčí `player`, použití NPC klávesou E, kamera v mapě bez `entity` (spouštěno konzolí bez NPC).
 
 Zbývá: ladění přímo v editoru bez spuštění hry (grafy), undo a více uzlů najednou, hráč jako postava v záběru (over-shoulder teď ukazuje jen mluvčího), překlady textů z editoru, uložení do slotu hry (stav žije jen po dobu hry), nápověda „Press E to talk" u NPC, titulky / textové efekty (třes, pauza).
+
+## Úpravy grafů: undo, výběr, schránka (hotové)
+Společné pro všechny čtyři grafy (`editor_graph_edit.cpp`, výběr ve `ui::graph`): snímkový undo/redo (až 100 kroků, tahy myší a psaní se slučují do jednoho kroku), výběr více uzlů (Shift, rámeček, Ctrl+A), tažení skupiny, hromadné mazání, Ctrl+C / X / V / D se zachováním spojení mezi kopírovanými uzly a systémová schránka. Ověřeno skriptovanými příkazy (`… undo|redo|commit|copy|paste|duplicate|select_idx|delete_selected|undo_depth`) na behavior stromu, animátoru, dialogu i questu (počty, unikátní jména, platná spojení, odmítnutí vložení do jiného druhu grafu, přesná obnova dokumentu) a snímkem výběru. **Neověřeno automaticky:** samotná myš (výběrový rámeček, Shift-klik, tažení skupiny, Space + tažení) a klávesové zkratky v běžícím editoru.
+Regresní test dialogu: `quest after`, `quest walk`, `rbs.camera_active` a dialog `auto_demo` hlídají, že se po dialogu uvolní skriptovaná kamera (smoke test `quest_camera_release`; ověřeno, že při rozbitém uvolnění selže).
+

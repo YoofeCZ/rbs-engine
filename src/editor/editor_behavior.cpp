@@ -150,11 +150,6 @@ static void SortChildren(Editor::Impl& ed, Document& d) {
     }
 }
 
-static void Touch(Document& d) {
-    d.dirty = true;
-    d.confirmClose = false;
-}
-
 static bool CanAttach(Editor::Impl& ed, Document& d, int parent, int child) {
     if (child < 0 || child >= (int)Nodes(d).size()) return false;
     if (parent == kRootId) return true;
@@ -447,7 +442,7 @@ void Editor::Impl::DrawBehaviorDoc(Rectangle r) {
         d.fitted = false;
     }
     if (btn("bb", "Blackboard", 88, showBB)) open["bt_blackboard"] = !showBB;
-    Text("right click: add node   -   drag from the dot on a node to its child   -   children run top to bottom   -   Del: delete", bx + 8, bar.y + 8, theme.textDim, 12);
+    Text("right click: add node   -   drag from the dot to the child   -   children run top to bottom   -   drag on empty: select box   -   Space+drag: move view   -   Ctrl+Z / C / V", bx + 8, bar.y + 8, theme.textDim, 12);
 
     Rectangle canvas{r.x, r.y + 30, r.width, r.height - 30};
     size_t keyRows = Arr(d.def, "blackboard").size();
@@ -475,6 +470,7 @@ void Editor::Impl::DrawBehaviorDoc(Rectangle r) {
         }
         SortChildren(*this, d);
         d.dirty = true;
+        d.stamp++;
     }
     if (ev.selectionChanged) d.selParam = -1;
     if (ev.linkFrom >= 0 && ev.linkTo >= 0) {
@@ -488,7 +484,7 @@ void Editor::Impl::DrawBehaviorDoc(Rectangle r) {
     }
     if (ev.deleteKey) {
         if (d.view.selLink >= 0) DeleteLink(d, d.view.selLink);
-        else if (d.view.selNode >= 0 && d.view.selNode != kRootId) DeleteNode(d, d.view.selNode);
+        else DeleteBehaviorSelection(d);
     }
     if (ev.context) {
         std::vector<std::string> items;
@@ -733,6 +729,7 @@ float Editor::Impl::InspectBehavior(Rectangle r, float y) {
     if (Button("dsave", {r.x + 10, y, bw, kRow + 2}, d.dirty ? "Save *" : "Save", d.dirty, d.dirty)) SaveDocument(d);
     if (Button("drevert", {r.x + 16 + bw, y, bw, kRow + 2}, "Revert", false, d.dirty)) ReloadDocument(d);
     y += kRow + 10;
+    y = SelectionNote(d, r, y);
 
     int n = (int)Nodes(d).size();
     if (d.view.selLink >= 0 && d.view.selLink < n) {
@@ -810,6 +807,10 @@ std::string Editor::BehaviorCommand(const std::vector<std::string>& a) {
     }
     Document* d = m->Doc();
     if (!d || d->kind != "behavior") return "no behavior open (behavior open <name>)";
+    {
+        std::string r = m->DocCommand(*d, a);
+        if (r != "\x01") return r;
+    }
     auto node = [&](const std::string& id) { return id == "root" ? kRootId : IndexOf(*d, id); };
     if (cmd == "dump") return d->def.dump();
     if (cmd == "entity") {
@@ -914,4 +915,75 @@ std::string Editor::BehaviorCommand(const std::vector<std::string>& a) {
     return "unknown command";
 }
 
+// ---------------------------------------------------------------------------------
+// selection: copy, paste, delete
+// ---------------------------------------------------------------------------------
+static std::vector<int> SelectedNodes(Document& d) {
+    std::vector<int> ids;
+    for (int id : d.view.selNodes)
+        if (id >= 0 && id < (int)Nodes(d).size()) ids.push_back(id);
+    return ids;  // ascending
+}
+
+json Editor::Impl::CopyBehaviorSelection(Document& d) {
+    json out = {{"kind", "behavior"}, {"nodes", json::array()}};
+    std::set<std::string> ids;
+    for (int i : SelectedNodes(d)) ids.insert(IdOf(d, i));
+    for (int i : SelectedNodes(d)) {
+        json n = Nodes(d)[i];
+        if (n.contains("children") && n["children"].is_array()) {
+            json kept = json::array();
+            for (auto& c : n["children"])
+                if (c.is_string() && ids.count(c.get<std::string>())) kept.push_back(c);  // links to nodes left behind are dropped
+            n["children"] = kept;
+        }
+        Vector2 p = NodePos(d, JStr(n, "id"), {0, 0});
+        out["nodes"].push_back({{"def", n}, {"pos", json::array({p.x, p.y})}});
+    }
+    return out;
+}
+
+void Editor::Impl::PasteBehavior(Document& d, const json& clip) {
+    if (!clip.is_object() || JStr(clip, "kind") != "behavior" || !clip.contains("nodes")) return;
+    std::map<std::string, std::string> renamed;
+    std::set<int> added;
+    float off = 40.0f * (d.pasteN + 1);
+    std::vector<std::string> newIds;
+    for (auto& e : clip["nodes"]) {
+        json n = e["def"];
+        std::string old = JStr(n, "id"), nid = NewId(d);
+        renamed[old] = nid;
+        n["id"] = nid;
+        Nodes(d).push_back(n);
+        Vector2 p{0, 0};
+        ReadPos(e["pos"], p);
+        SetNodePos(d, nid, {p.x + off, p.y + off});
+        added.insert((int)Nodes(d).size() - 1);
+        newIds.push_back(nid);
+    }
+    for (auto& nid : newIds) {
+        json& n = Nodes(d)[IndexOf(d, nid)];
+        if (!n.contains("children") || !n["children"].is_array()) continue;
+        json kids = json::array();
+        for (auto& c : n["children"])
+            if (c.is_string() && renamed.count(c.get<std::string>())) kids.push_back(renamed[c.get<std::string>()]);
+        n["children"] = kids;
+    }
+    if (added.empty()) return;
+    SortChildren(*this, d);
+    d.view.selNodes = added;
+    d.view.selNode = *added.rbegin();
+    d.view.lastSelNode = d.view.selNode;
+    d.view.selLink = -1;
+    d.selParam = -1;
+    Touch(d);
+}
+
+void Editor::Impl::DeleteBehaviorSelection(Document& d) {
+    std::vector<int> ids = SelectedNodes(d);
+    for (size_t i = ids.size(); i-- > 0;) DeleteNode(d, ids[i]);
+    d.view.selNode = d.view.selLink = -1;
+    d.view.selNodes.clear();
+    d.view.lastSelNode = -1;
+}
 }  // namespace rbs

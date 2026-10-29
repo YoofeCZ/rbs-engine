@@ -99,11 +99,6 @@ static Vector2 NodePos(Document& d, const std::string& id, Vector2 def) {
 
 static void SetNodePos(Document& d, const std::string& id, Vector2 p) { LayoutOf(d)[id] = json::array({roundf(p.x), roundf(p.y)}); }
 
-static void Touch(Document& d) {
-    d.dirty = true;
-    d.confirmClose = false;
-}
-
 // output ports of a node: the names used in the file ("next", "yes", "o1"...)
 static std::vector<std::string> PortNames(Editor::Impl& ed, const json& node) {
     const json* meta = LibNode(ed, JStr(node, "type"));
@@ -496,7 +491,7 @@ void Editor::Impl::DrawFlowDoc(Rectangle r) {
     }
     if (btn("vars", "Variables", 82, showVars)) open["flow_vars"] = !showVars;
     if (isDialogue && btn("preview", "Preview", 72, showPreview)) open["flow_preview"] = !showPreview;
-    Text("right click: add node   -   drag from a dot (port) on a node to the next node   -   Del: delete", bx + 8, bar.y + 8, theme.textDim, 12);
+    Text("right click: add node   -   drag from a dot (port) to the next node   -   drag on empty: select box   -   Space+drag: move view   -   Ctrl+Z / C / V", bx + 8, bar.y + 8, theme.textDim, 12);
 
     Rectangle canvas{r.x, r.y + 30, r.width, r.height - 30};
     size_t declared = Arr(d.def, "vars").size();
@@ -528,6 +523,7 @@ void Editor::Impl::DrawFlowDoc(Rectangle r) {
         for (auto& n : nodes)
             if (n.id < (int)Nodes(d).size()) SetNodePos(d, IdOf(d, n.id), n.pos);
         d.dirty = true;
+        d.stamp++;
     }
     if (ev.selectionChanged) d.selParam = -1;
     if (ev.linkFrom >= 0 && ev.linkTo >= 0 && ev.linkFrom < (int)Nodes(d).size()) {
@@ -546,8 +542,8 @@ void Editor::Impl::DrawFlowDoc(Rectangle r) {
             DecodeLink(d.view.selLink, s, p, t);
             std::vector<std::string> ports = s < (int)Nodes(d).size() ? PortNames(*this, Nodes(d)[s]) : std::vector<std::string>();
             if (p < (int)ports.size()) RemoveLink(d, s, ports[p], t);
-        } else if (d.view.selNode >= 0) {
-            DeleteNode(d, d.view.selNode);
+        } else {
+            DeleteFlowSelection(d);
         }
     }
     if (ev.context) {
@@ -1232,6 +1228,7 @@ float Editor::Impl::InspectFlow(Rectangle r, float y) {
     if (Button("dsave", {r.x + 10, y, bw, kRow + 2}, d.dirty ? "Save *" : "Save", d.dirty, d.dirty)) SaveDocument(d);
     if (Button("drevert", {r.x + 16 + bw, y, bw, kRow + 2}, "Revert", false, d.dirty)) ReloadDocument(d);
     y += kRow + 10;
+    y = SelectionNote(d, r, y);
 
     int n = (int)Nodes(d).size();
     if (d.view.selLink >= 0) {
@@ -1330,6 +1327,10 @@ std::string Editor::FlowCommand(const std::vector<std::string>& a) {
     }
     Document* d = m->Doc();
     if (!isFlow(d)) return "no quest or dialogue open (flow open quest|dialogue <name>)";
+    {
+        std::string r = m->DocCommand(*d, a);
+        if (r != "\x01") return r;
+    }
     auto node = [&](const std::string& id) { return IndexOf(*d, id); };
     if (cmd == "dump") return d->def.dump();
     if (cmd == "entity") {
@@ -1444,4 +1445,77 @@ std::string Editor::FlowCommand(const std::vector<std::string>& a) {
     return "unknown command";
 }
 
+// ---------------------------------------------------------------------------------
+// selection: copy, paste, delete
+// ---------------------------------------------------------------------------------
+static std::vector<int> SelectedNodes(Document& d) {
+    std::vector<int> ids;
+    for (int id : d.view.selNodes)
+        if (id >= 0 && id < (int)Nodes(d).size()) ids.push_back(id);
+    return ids;  // ascending
+}
+
+json Editor::Impl::CopyFlowSelection(Document& d) {
+    json out = {{"kind", d.kind}, {"nodes", json::array()}};
+    std::set<std::string> ids;
+    for (int i : SelectedNodes(d)) ids.insert(IdOf(d, i));
+    for (int i : SelectedNodes(d)) {
+        json n = Nodes(d)[i];
+        if (n.contains("out") && n["out"].is_object()) {
+            for (auto it = n["out"].begin(); it != n["out"].end(); ++it) {
+                json kept = json::array();
+                for (auto& t : it.value())
+                    if (t.is_string() && ids.count(t.get<std::string>())) kept.push_back(t);  // links to nodes left behind are dropped
+                it.value() = kept;
+            }
+        }
+        Vector2 p = NodePos(d, JStr(n, "id"), {0, 0});
+        out["nodes"].push_back({{"def", n}, {"pos", json::array({p.x, p.y})}});
+    }
+    return out;
+}
+
+void Editor::Impl::PasteFlow(Document& d, const json& clip) {
+    if (!clip.is_object() || JStr(clip, "kind") != d.kind || !clip.contains("nodes")) return;
+    std::map<std::string, std::string> renamed;
+    std::set<int> added;
+    float off = 40.0f * (d.pasteN + 1);
+    std::vector<std::string> newIds;
+    for (auto& e : clip["nodes"]) {
+        json n = e["def"];
+        std::string old = JStr(n, "id"), nid = NewId(d);
+        renamed[old] = nid;
+        n["id"] = nid;
+        Nodes(d).push_back(n);
+        Vector2 p{0, 0};
+        ReadPos(e["pos"], p);
+        SetNodePos(d, nid, {p.x + off, p.y + off});
+        added.insert((int)Nodes(d).size() - 1);
+        newIds.push_back(nid);
+    }
+    for (auto& nid : newIds) {
+        json& n = Nodes(d)[IndexOf(d, nid)];
+        if (!n.contains("out") || !n["out"].is_object()) continue;
+        for (auto it = n["out"].begin(); it != n["out"].end(); ++it) {
+            json kids = json::array();
+            for (auto& t : it.value())
+                if (t.is_string() && renamed.count(t.get<std::string>())) kids.push_back(renamed[t.get<std::string>()]);
+            it.value() = kids;
+        }
+    }
+    if (added.empty()) return;
+    d.view.selNodes = added;
+    d.view.selNode = *added.rbegin();
+    d.view.lastSelNode = d.view.selNode;
+    d.view.selLink = -1;
+    Touch(d);
+}
+
+void Editor::Impl::DeleteFlowSelection(Document& d) {
+    std::vector<int> ids = SelectedNodes(d);
+    for (size_t i = ids.size(); i-- > 0;) DeleteNode(d, ids[i]);
+    d.view.selNode = d.view.selLink = -1;
+    d.view.selNodes.clear();
+    d.view.lastSelNode = -1;
+}
 }  // namespace rbs

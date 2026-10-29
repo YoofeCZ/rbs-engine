@@ -429,6 +429,18 @@ end
 
 local poll = 0
 function rbs._update(dt)
+  if flow.timers then
+    local due, keep = {}, {}
+    for _, t in ipairs(flow.timers) do
+      if rbs.time() >= t.at then due[#due + 1] = t else keep[#keep + 1] = t end
+    end
+    flow.timers = keep
+    for _, t in ipairs(due) do rbs.quest_console(t.line) end
+  end
+  if flow.walk_until and rbs.time() < flow.walk_until then
+    local pl = rbs.player()
+    if pl then pl.vel = vec(0, pl.vel.y, 0) + vec(0, 0, 1) * 160 end
+  end
   for _, inst in pairs(flow.quests) do
     if not inst.done then
       local ids = {}
@@ -754,6 +766,14 @@ function rbs.quest_console(line)
   elseif cmd == "say" then rbs.log("dialogue " .. tostring(args[2]) .. ": " .. tostring(flow.start_dialogue(args[2] or "")))
   elseif cmd == "next" then rbs.log("next: " .. tostring(flow.advance(true)))
   elseif cmd == "pick" then rbs.log("pick: " .. tostring(flow.pick(tonumber(args[2]) or 1, true)))
+  elseif cmd == "after" then
+    -- quest after <seconds> <command...>: runs a console command later (tests that need time to pass)
+    local rest = {}
+    for i = 3, #args do rest[#rest + 1] = args[i] end
+    flow.timers = flow.timers or {}
+    flow.timers[#flow.timers + 1] = {at = rbs.time() + (tonumber(args[2]) or 0), line = table.concat(rest, " ")}
+  elseif cmd == "walk" then
+    flow.walk_until = rbs.time() + (tonumber(args[2]) or 1)  -- test helper: the player walks on by itself
   elseif cmd == "reset" then flow.reset(); rbs.log("quests reset")
   elseif cmd == "map" then flow.save(); rbs.change_map(args[2] or "")
   elseif cmd == "selftest" then rbs.flow_selftest()
@@ -778,6 +798,7 @@ function rbs.quest_console(line)
     for k, v in pairs(flow.vars) do keys[#keys + 1] = k .. "=" .. tostring(v) end
     table.sort(keys)
     rbs.log("VARS " .. table.concat(keys, " "))
+    rbs.log("CAMERA " .. (rbs.camera_active() and "on" or "off") .. " cinematic " .. tostring(flow.cinematic == true))
   else
     rbs.log("quest start|event|var|say|next|pick|dump|reset|selftest")
   end

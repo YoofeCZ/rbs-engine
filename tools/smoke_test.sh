@@ -72,6 +72,13 @@ if ! grep -q "opened dialogues/guard.json" "$OUT/dialogue_preview.log"; then
     echo "   FAILED: the dialogue editor preview did not open"
     status=1
 fi
+# a dialogue that ends by itself while the player walks on: the script camera must be released
+# and the weapon must come back (a stuck camera hid it once)
+run quest_camera_release 1280x720 --mod quest_demo --map quest_arena --frames 1500 --exec "god; setpos 0 88 0 270 0; quest say auto_demo; quest after 0.3 walk 3; quest after 5 dump"
+if ! grep -q "CAMERA off cinematic false" "$OUT/quest_camera_release.log"; then
+    echo "   FAILED: the dialogue camera was not released after the dialogue ended"
+    status=1
+fi
 # a dialogue that is still typing (voice blips overlap, the sound alias pool fills) when the game exits
 run quest_voice 1280x720 --mod quest_demo --map quest_arena --frames 150 --exec "god; quest say guard"
 # the animator editor: opens the grunt animator in a tab and selects a state

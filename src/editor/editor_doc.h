@@ -15,6 +15,21 @@ namespace edoc {
 constexpr float kRow = 22;
 constexpr const char* kNone = "(none)";
 
+// an edit was made: the document is unsaved, and UpdateUndo will store the state once the edit is finished
+inline void Touch(Document& d) {
+    d.dirty = true;
+    d.confirmClose = false;
+    d.previewStale = true;
+    d.stamp++;
+}
+
+// "3 nodes selected" line at the top of an Inspector when more than one node is selected
+inline float SelectionNote(const Document& d, Rectangle r, float y) {
+    if (d.view.selNodes.size() < 2) return y;
+    ui::Text(std::to_string(d.view.selNodes.size()) + " nodes selected (Delete, Ctrl+C / X / V, Ctrl+D)", r.x + 12, y, Color{120, 190, 255, 255}, 12);
+    return y + 18;
+}
+
 inline json& Arr(json& d, const char* key) {
     if (!d.contains(key) || !d[key].is_array()) d[key] = json::array();
     return d[key];

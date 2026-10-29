@@ -26,12 +26,6 @@ static const int kAnyId = 100000;  // node id of the "Any State" node (states us
 // ---------------------------------------------------------------------------------
 static std::string Stem(const std::string& path) { return fs::path(path).stem().string(); }
 
-static void Touch(Document& d) {
-    d.dirty = true;
-    d.previewStale = true;
-    d.confirmClose = false;
-}
-
 // ---------------------------------------------------------------------------------
 // the animator model: states, transitions, parameters
 // ---------------------------------------------------------------------------------
@@ -283,6 +277,7 @@ void Editor::Impl::OpenDocument(const std::string& kind, const std::string& name
         d->previewModel = d->def.contains("editor") && d->def["editor"].is_object() ? JStr(d->def["editor"], "preview_model") : "";
         if (d->previewModel.empty()) d->previewModel = GuessPreviewModel(*this, path);
     }
+    d->snap = d->def;  // undo starts from the document as opened
     docs.push_back(std::move(d));
     activeDoc = (int)docs.size() - 1;
 }
@@ -352,9 +347,11 @@ void Editor::Impl::ReloadDocument(Document& d) {
         EnsureLayout(d);
     }
     d.view.selNode = d.view.selLink = -1;
+    d.view.selNodes.clear();
     d.selParam = -1;
     d.dirty = false;
     d.previewStale = true;
+    d.stamp++;  // the revert is a step that can be undone
 }
 
 void Editor::Impl::CloseDocument(int i, bool force) {
@@ -587,7 +584,7 @@ void Editor::Impl::DrawDocument(Rectangle r) {
     }
     if (btn("params", "Parameters", 88, showParams)) open["anim_params"] = !showParams;
     if (btn("preview", "Preview", 72, showPreview)) open["anim_preview"] = !showPreview;
-    Text(std::string("right click: menu   -   drag the dot on a state to another state: transition   -   Del: delete   -   wheel: zoom"), bx + 8, bar.y + 8, theme.textDim, 12);
+    Text(std::string("right click: menu   -   drag the dot on a state to another: transition   -   drag on empty: select box   -   Space+drag: move view   -   Ctrl+Z / C / V"), bx + 8, bar.y + 8, theme.textDim, 12);
 
     Rectangle canvas{r.x, r.y + 30, r.width, r.height - 30};
 
@@ -624,6 +621,7 @@ void Editor::Impl::DrawDocument(Rectangle r) {
             }
         }
         d.dirty = true;
+        d.stamp++;
     }
     if (ev.selectionChanged) {
         d.selParam = -1;
@@ -646,7 +644,7 @@ void Editor::Impl::DrawDocument(Rectangle r) {
     }
     if (ev.deleteKey) {
         if (d.view.selLink >= 0) DeleteTransition(d, d.view.selLink);
-        else if (d.view.selNode >= 0 && d.view.selNode != kAnyId) DeleteState(d, d.view.selNode);
+        else DeleteAnimatorSelection(d);
     }
     if (d.makeFrom >= 0 && IsKeyPressed(KEY_ESCAPE)) d.makeFrom = -1;
     if (ev.context) {
@@ -1124,6 +1122,7 @@ float Editor::Impl::InspectDocument(Rectangle r, float y) {
     if (Button("dsave", {r.x + 10, y, bw, kRow + 2}, d.dirty ? "Save *" : "Save", d.dirty, d.dirty)) SaveDocument(d);
     if (Button("drevert", {r.x + 16 + bw, y, bw, kRow + 2}, "Revert", false, d.dirty)) ReloadDocument(d);
     y += kRow + 10;
+    y = SelectionNote(d, r, y);
 
     int nstates = (int)Arr(d.def, "states").size();
     if (d.view.selLink >= 0 && d.view.selLink < (int)Arr(d.def, "transitions").size()) return InspectTransition(*this, d, f, y, d.view.selLink);
@@ -1207,6 +1206,10 @@ std::string Editor::AnimatorCommand(const std::vector<std::string>& a) {
     }
     Document* d = m->Doc();
     if (!d) return "no animator open (animator open <name>)";
+    {
+        std::string r = m->DocCommand(*d, a);
+        if (r != "\x01") return r;
+    }
     if (cmd == "close") {
         m->CloseDocument(m->activeDoc, true);
         return "closed";
@@ -1287,4 +1290,68 @@ std::string Editor::AnimatorCommand(const std::vector<std::string>& a) {
     return "unknown command";
 }
 
+// ---------------------------------------------------------------------------------
+// selection: copy, paste, delete
+// ---------------------------------------------------------------------------------
+static std::vector<int> SelectedStates(Document& d) {
+    std::vector<int> ids;
+    for (int id : d.view.selNodes)
+        if (id >= 0 && id < (int)Arr(d.def, "states").size()) ids.push_back(id);
+    return ids;  // ascending
+}
+
+json Editor::Impl::CopyAnimatorSelection(Document& d) {
+    json out = {{"kind", "animator"}, {"states", json::array()}, {"transitions", json::array()}};
+    std::set<std::string> names;
+    for (int i : SelectedStates(d)) {
+        Vector2 p = StatePos(d, i);
+        out["states"].push_back({{"def", d.def["states"][i]}, {"pos", json::array({p.x, p.y})}});
+        names.insert(JStr(d.def["states"][i], "name"));
+    }
+    // transitions between the copied states only (links to states left behind are dropped)
+    for (auto& t : Arr(d.def, "transitions"))
+        if (names.count(JStr(t, "from")) && names.count(JStr(t, "to"))) out["transitions"].push_back(t);
+    return out;
+}
+
+void Editor::Impl::PasteAnimator(Document& d, const json& clip) {
+    if (!clip.is_object() || JStr(clip, "kind") != "animator" || !clip.contains("states")) return;
+    std::map<std::string, std::string> renamed;
+    std::vector<std::string> taken = StateNames(d);
+    std::set<int> added;
+    float off = 40.0f * (d.pasteN + 1);
+    for (auto& e : clip["states"]) {
+        json s = e["def"];
+        std::string old = JStr(s, "name"), nn = UniqueName(taken, old);
+        taken.push_back(nn);
+        renamed[old] = nn;
+        s["name"] = nn;
+        Arr(d.def, "states").push_back(s);
+        Vector2 p{0, 0};
+        ReadPos(e["pos"], p);
+        SetStatePos(d, nn, {p.x + off, p.y + off});
+        added.insert((int)d.def["states"].size() - 1);
+    }
+    for (auto& t : clip.value("transitions", json::array())) {
+        json nt = t;
+        nt["from"] = renamed.count(JStr(t, "from")) ? renamed[JStr(t, "from")] : JStr(t, "from");
+        nt["to"] = renamed.count(JStr(t, "to")) ? renamed[JStr(t, "to")] : JStr(t, "to");
+        Arr(d.def, "transitions").push_back(nt);
+    }
+    if (added.empty()) return;
+    d.view.selNodes = added;
+    d.view.selNode = *added.rbegin();
+    d.view.lastSelNode = d.view.selNode;
+    d.view.selLink = -1;
+    d.selParam = -1;
+    Touch(d);
+}
+
+void Editor::Impl::DeleteAnimatorSelection(Document& d) {
+    std::vector<int> ids = SelectedStates(d);
+    for (size_t i = ids.size(); i-- > 0;) DeleteState(d, ids[i]);  // from the end: indices of the others stay valid
+    d.view.selNode = d.view.selLink = -1;
+    d.view.selNodes.clear();
+    d.view.lastSelNode = -1;
+}
 }  // namespace rbs

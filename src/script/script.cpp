@@ -1239,6 +1239,11 @@ static int L_camera_set(lua_State* L) {
     return 0;
 }
 
+static int L_camera_active(lua_State* L) {
+    lua_pushboolean(L, RequireGame(L)->ScriptCameraActive());
+    return 1;
+}
+
 static int L_camera_clear(lua_State* L) {
     RequireGame(L)->ClearScriptCamera((float)luaL_optnumber(L, 1, 4));
     return 0;
@@ -1537,7 +1542,7 @@ static const luaL_Reg kApi[] = {
     {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {"list_files", L_list_files},
     {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {"anim_param", L_anim_param},
     {"anim_trigger", L_anim_trigger}, {"anim_state", L_anim_state}, {"persist_set", L_persist_set},
-    {"persist_get", L_persist_get}, {"camera_set", L_camera_set}, {"camera_clear", L_camera_clear}, {"freeze", L_freeze}, {"key_pressed", L_key_pressed}, {"mouse", L_mouse}, {nullptr, nullptr}};
+    {"persist_get", L_persist_get}, {"camera_set", L_camera_set}, {"camera_clear", L_camera_clear}, {"camera_active", L_camera_active}, {"freeze", L_freeze}, {"key_pressed", L_key_pressed}, {"mouse", L_mouse}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class

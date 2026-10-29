@@ -128,3 +128,18 @@ Vyber skupinu brushů a entit → **Project → Prefabs → Save selection as pr
 **Project → Scripts** – klik otevře skript ve výchozím textovém editoru systému. Po úpravě klikni na **Reload scripts**: nové třídy a komponenty se hned objeví v Project a Inspectoru. Po přeložení nativního pluginu klikni na **Reload plugins**.
 
 Lua API: [SCRIPTING.md](SCRIPTING.md), vlastní AI: [AI.md](AI.md), nativní pluginy: [PLUGINS.md](PLUGINS.md).
+
+## Grafy (animátory, behavior trees, questy, dialogy)
+
+Všechny čtyři grafy se ovládají stejně:
+
+| Co | Jak |
+|---|---|
+| Vybrat uzel | klik; **Shift+klik** přidá / odebere, **tažení po prázdném plátně** nakreslí výběrový rámeček, **Ctrl+A** vybere vše |
+| Přesunout | tažení uzlu; tažení uvnitř výběru posune celou skupinu |
+| Posun pohledu | **Space + tažení**, prostřední nebo pravé tlačítko; kolečko zoomuje; **Fit** vycentruje |
+| Spojit | tažení z tečky (portu) na pravém okraji uzlu na další uzel |
+| Smazat | **Delete** smaže celý výběr (spojení vybrané šipky také) |
+| Zpět / znovu | **Ctrl+Z**, **Ctrl+Shift+Z** nebo **Ctrl+Y**, tlačítka *Undo* / *Redo* nahoře (u otevřeného grafu platí pro něj, na záložce Level pro mapu). Tažení uzlů, tažení čísla nebo napsané slovo je jeden krok; *Revert* jde vrátit také |
+| Kopírovat | **Ctrl+C**, **Ctrl+X**, **Ctrl+V**, **Ctrl+D** (duplikovat): kopírují se uzly i spojení mezi nimi (spojení na uzly mimo výběr se zahodí), vložené uzly dostanou nová jména / čísla a jsou vybrané. Schránka přežije restart editoru a jde vložit i do jiného projektu; vložit jde jen do stejného druhu grafu |
+

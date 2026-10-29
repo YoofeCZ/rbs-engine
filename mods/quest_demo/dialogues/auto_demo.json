@@ -1,0 +1,63 @@
+{
+  "title": "Auto",
+  "vars": [],
+  "speakers": [
+    {
+      "id": "Guard",
+      "name": "Guard",
+      "entity": "guard",
+      "pitch": 1.2
+    }
+  ],
+  "style": {
+    "text_speed": 60
+  },
+  "nodes": [
+    {
+      "id": "a",
+      "type": "start",
+      "out": {
+        "next": [
+          "s1"
+        ]
+      }
+    },
+    {
+      "id": "s1",
+      "type": "say",
+      "params": {
+        "speaker": "Guard",
+        "text": "Short line one.",
+        "shot": "close-up",
+        "motion": "push-in",
+        "auto": 0.4
+      },
+      "out": {
+        "next": [
+          "s2"
+        ]
+      }
+    },
+    {
+      "id": "s2",
+      "type": "say",
+      "params": {
+        "speaker": "Guard",
+        "text": "Short line two.",
+        "shot": "wide",
+        "motion": "pull-out",
+        "auto": 0.4
+      },
+      "out": {
+        "next": [
+          "e"
+        ]
+      }
+    },
+    {
+      "id": "e",
+      "type": "end",
+      "out": {}
+    }
+  ]
+}

@@ -5,6 +5,8 @@
 
 #include "ui/imgui.h"
 
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -40,7 +42,12 @@ struct Link {
 struct View {
     Vector2 pan{60, 60};    // graph origin on the canvas, in pixels
     float zoom = 1;
-    int selNode = -1, selLink = -1;
+    int selNode = -1, selLink = -1;  // selNode: the primary selection (what the Inspector shows)
+    std::set<int> selNodes;          // every selected node (selNode is one of them)
+    int lastSelNode = -1;            // lets Draw notice when a document changed selNode directly
+    bool marquee = false, marqueeShift = false;
+    Vector2 marqueeStart{};
+    std::map<int, Vector2> grabs;    // selected nodes being dragged: where each was grabbed
     std::vector<Rectangle> exclude;  // screen rectangles covered by overlays (the canvas ignores the mouse there)
     // interaction (managed by Draw)
     int dragNode = -1, linkFrom = -1, linkFromPort = -1;
@@ -60,7 +67,7 @@ struct Events {
     bool selectionChanged = false;
     int linkFrom = -1, linkTo = -1;    // a link was dragged from one node onto another
     int linkFromPort = -1;             // ... starting at this port of the source node (-1: it has none)
-    bool deleteKey = false;            // Delete pressed while the canvas had focus
+    bool deleteKey = false;            // Delete pressed while the canvas had focus (delete selNodes / selLink)
     bool context = false;              // right click: open a menu (see OpenMenu)
     int contextNode = -1, contextLink = -1;
     Vector2 contextGraphPos{};         // where in the graph it happened
