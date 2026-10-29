@@ -33,20 +33,19 @@ jobs:
       - name: Build engine
         run: cmake --build build --config Release --parallel
 
-      # Example plugins in C, C++, Rust and C# (whichever toolchains the runner has).
+      # Example plugins in C, C++, Rust and C#. Missing toolchains are skipped by the
+      # scripts, an installed toolchain that fails to build fails the job.
       - name: Set up MSVC (Windows plugins)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build example plugins (Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
         shell: pwsh
         run: sdk/build_examples.ps1
 
       - name: Build example plugins (Linux, macOS)
         if: runner.os != 'Windows'
-        continue-on-error: true
         run: sdk/build_examples.sh
 
       - name: Smoke test (game, editor, mods, plugins)
