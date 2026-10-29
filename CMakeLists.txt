@@ -3,7 +3,7 @@ project(rbs_engine VERSION 0.1.0 LANGUAGES C CXX)
 
 # ---------------------------------------------------------------------------
 #  RBS Engine - retro boomer shooter engine
-#  Dependencies are fetched automatically (raylib, Lua, raygui, nlohmann/json).
+#  Dependencies are fetched automatically (raylib, Lua, nlohmann/json).
 #  For offline builds point FETCHCONTENT_SOURCE_DIR_<NAME> at local checkouts,
 #  e.g. -DFETCHCONTENT_SOURCE_DIR_RAYLIB=/path/to/raylib
 # ---------------------------------------------------------------------------
@@ -27,12 +27,6 @@ FetchContent_Declare(raylib
   GIT_TAG 5.5
   GIT_SHALLOW TRUE)
 
-# raygui (header only) --------------------------------------------------------
-FetchContent_Declare(raygui
-  GIT_REPOSITORY https://github.com/raysan5/raygui.git
-  GIT_TAG 4.0
-  GIT_SHALLOW TRUE)
-
 # Lua 5.4 -------------------------------------------------------------------
 FetchContent_Declare(lua
   GIT_REPOSITORY https://github.com/lua/lua.git
@@ -46,10 +40,8 @@ FetchContent_Declare(json
   GIT_SHALLOW TRUE)
 
 FetchContent_MakeAvailable(raylib)
-FetchContent_GetProperties(raygui)
-if(NOT raygui_POPULATED)
-  FetchContent_Populate(raygui)
-endif()
+# Formats raylib's config.h leaves disabled but modders expect (TGA textures, FLAC sounds).
+target_compile_definitions(raylib PRIVATE SUPPORT_FILEFORMAT_TGA=1 SUPPORT_FILEFORMAT_FLAC=1)
 FetchContent_GetProperties(lua)
 if(NOT lua_POPULATED)
   FetchContent_Populate(lua)
@@ -82,7 +74,6 @@ add_executable(rbs ${RBS_SOURCES})
 target_include_directories(rbs PRIVATE
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/sdk/include
-  ${raygui_SOURCE_DIR}/src
   ${json_SOURCE_DIR}/single_include)
 find_package(Threads REQUIRED)
 target_link_libraries(rbs PRIVATE raylib lua_static Threads::Threads ${CMAKE_DL_LIBS})
@@ -100,6 +91,9 @@ endif()
 
 # The executable looks for the game data folder (base/) next to itself and then
 # in parent folders, so running it straight from build/ uses the repo's base/.
-install(TARGETS rbs RUNTIME DESTINATION .)
-install(DIRECTORY base mods DESTINATION .)
-install(FILES README.md LICENSE DESTINATION .)
+# Package the game with:  cmake --install build --component game --prefix dist
+# (the component skips the static raylib library and headers raylib installs too).
+install(TARGETS rbs RUNTIME DESTINATION . COMPONENT game)
+install(DIRECTORY base mods sdk docs DESTINATION . COMPONENT game
+        PATTERN "cache" EXCLUDE PATTERN "target" EXCLUDE PATTERN "bin" EXCLUDE PATTERN "obj" EXCLUDE PATTERN "build" EXCLUDE)
+install(FILES README.md LICENSE THIRD_PARTY.md DESTINATION . COMPONENT game)

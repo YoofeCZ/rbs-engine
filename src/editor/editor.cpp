@@ -8,6 +8,7 @@
 #include "ui/imgui.h"
 
 #include <filesystem>
+#include <fstream>
 
 namespace rbs {
 
@@ -40,6 +41,8 @@ void Editor::Open(const std::string& mapPath) {
     if (mapPath.empty() || !m->OpenMap(mapPath)) m->NewMap();
 }
 
+void Editor::Import(const std::string& path) { m->ImportPaths({path}, false); }
+
 void Editor::OnReturnFromPlay() {
     m->RefreshClasses();
     m->meshDirty = true;
@@ -50,6 +53,7 @@ void Editor::OnReturnFromPlay() {
 void Editor::Update(float dt, bool consoleHasFocus) {
     if (IsCursorHidden() && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) EnableCursor();
     m->UpdateBake();
+    m->HandleDroppedFiles();
     bool keyboardFree = !consoleHasFocus && !ui::KeyboardCaptured() && m->dialog.empty();
     if (keyboardFree) m->HandleShortcuts();
     if (m->dialog.empty()) m->UpdateViews(keyboardFree);
@@ -136,14 +140,151 @@ void Editor::Impl::RefreshLists(bool force) {
     modelList = strip(vfs::List("models", ".glb", true));
     for (auto& f : vfs::List("models", ".gltf", true)) modelList.push_back(f);
     for (auto& f : vfs::List("models", ".obj", true)) modelList.push_back(f);
-    for (auto& f : vfs::List("models", ".iqm", true)) modelList.push_back(f);
+    for (const char* ext : {".iqm", ".m3d", ".vox"})
+        for (auto& f : vfs::List("models", ext, true)) modelList.push_back(f);
     soundList = vfs::List("sounds", ".wav", true);
-    for (auto& f : vfs::List("sounds", ".ogg", true)) soundList.push_back(f);
-    for (auto& f : vfs::List("sounds", ".mp3", true)) soundList.push_back(f);
+    for (const char* ext : {".ogg", ".mp3", ".flac", ".qoa"})
+        for (auto& f : vfs::List("sounds", ext, true)) soundList.push_back(f);
     spriteList = vfs::List("sprites", ".png", true);
     scriptList = vfs::List("scripts", ".lua", true);
     mapList = vfs::List("maps", ".json", false);
     prefabList = vfs::List("prefabs", ".json", true);
+}
+
+// ---------------------------------------------------------------------------------
+// importing files dragged in from the OS (like dropping assets into Unity's Project)
+// ---------------------------------------------------------------------------------
+std::string Editor::Impl::ImportFile(const std::string& srcPath, int& count) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::path src(srcPath);
+    fs::path root = fs::path(vfs::WriteDir());
+    auto copy = [&](const fs::path& from, const fs::path& to) {
+        fs::create_directories(to.parent_path(), ec);
+        if (fs::exists(to, ec) && fs::equivalent(from, to, ec)) return true;
+        if (!fs::copy_file(from, to, fs::copy_options::overwrite_existing, ec)) {
+            LOG_WARN("Import failed: %s -> %s (%s)", from.string().c_str(), to.string().c_str(), ec.message().c_str());
+            return false;
+        }
+        LOG_INFO("Imported %s", to.string().c_str());
+        ++count;
+        return true;
+    };
+    if (fs::is_directory(src, ec)) {
+        // a folder with a glTF/OBJ model keeps its layout (the model references its .bin/textures)
+        bool modelFolder = false;
+        for (auto& e : fs::directory_iterator(src, ec)) {
+            std::string ext = ToLower(e.path().extension().string());
+            if (ext == ".gltf" || ext == ".obj") modelFolder = true;
+        }
+        std::string last;
+        if (modelFolder) {
+            for (auto& e : fs::recursive_directory_iterator(src, ec)) {
+                if (!e.is_regular_file()) continue;
+                fs::path rel = fs::relative(e.path(), src, ec);
+                fs::path dst = root / "models" / src.filename() / rel;
+                std::string ext = ToLower(e.path().extension().string());
+                if (copy(e.path(), dst) && (ext == ".gltf" || ext == ".obj"))
+                    last = "model:" + fs::relative(dst, root, ec).generic_string();
+            }
+            return last;
+        }
+        for (auto& e : fs::directory_iterator(src, ec)) {
+            std::string r = ImportFile(e.path().string(), count);
+            if (!r.empty()) last = r;
+        }
+        return last;
+    }
+    std::string ext = ToLower(src.extension().string());
+    std::string name = src.filename().string();
+    auto is = [&](std::initializer_list<const char*> list) {
+        for (const char* e : list)
+            if (ext == e) return true;
+        return false;
+    };
+    std::string folder, type;
+    if (is({".png", ".tga", ".jpg", ".jpeg", ".bmp", ".qoi"})) {
+        bool sprite = projectFolder == "Sprites";
+        folder = sprite ? "sprites" : "textures";
+        type = sprite ? "sprite" : "texture";
+        if (ext == ".jpeg") name = src.stem().string() + ".jpg";
+    } else if (is({".glb", ".gltf", ".obj", ".iqm", ".m3d", ".vox"})) {
+        folder = "models", type = "model";
+    } else if (is({".wav", ".ogg", ".mp3", ".flac", ".qoa", ".xm", ".mod"})) {
+        folder = "sounds", type = "sound";
+    } else if (is({".ttf", ".otf"})) {
+        folder = "fonts";
+    } else if (ext == ".lua") {
+        folder = "scripts/autorun";
+    } else if (ext == ".json") {
+        std::ifstream f(src);
+        json j = json::parse(f, nullptr, false, true);
+        std::string format = j.is_object() ? j.value("format", "") : "";
+        if (format == "rbs-map") folder = "maps", type = "map";
+        else if (format == "rbs-prefab") folder = "prefabs", type = "prefab";
+        else if (j.is_object() && src.parent_path().filename() == "textures") folder = "textures";  // texture meta
+    }
+    if (folder.empty()) {
+        LOG_WARN("Import: unknown file type %s", srcPath.c_str());
+        return "";
+    }
+    fs::path dst = root / folder / name;
+    if (!copy(src, dst)) return "";
+    if (type == "texture") {
+        std::string tex = fs::path(name).stem().string();
+        assets::ReloadTexture(tex);
+        return "texture:" + tex;
+    }
+    return type.empty() ? "" : type + ":" + folder + "/" + name;
+}
+
+void Editor::Impl::HandleDroppedFiles() {
+    if (!IsFileDropped()) return;
+    FilePathList files = LoadDroppedFiles();
+    std::vector<std::string> paths(files.paths, files.paths + files.count);
+    UnloadDroppedFiles(files);
+    ImportPaths(paths, true);
+}
+
+void Editor::Impl::ImportPaths(const std::vector<std::string>& paths, bool placeAtMouse) {
+    int count = 0;
+    std::string last;
+    bool scripts = false;
+    for (auto& p : paths) {
+        std::string ext = ToLower(std::filesystem::path(p).extension().string());
+        if (ext == ".lua" || std::filesystem::is_directory(p)) scripts = true;
+        std::string r = ImportFile(p, count);
+        if (!r.empty()) last = r;
+    }
+    if (count == 0) {
+        SetStatus("Nothing imported (unsupported file type)");
+        return;
+    }
+    RefreshLists(true);
+    if (scripts) RefreshClasses();
+    meshDirty = true;  // re-texture faces whose image changed
+    std::string where = vfs::CurrentMod().empty() ? "base/" : "mods/" + vfs::CurrentMod() + "/";
+    SetStatus(StrFormat("Imported %d file(s) into %s", count, where.c_str()));
+    // a single asset dropped over a view is placed there, like dragging it from the Project panel
+    size_t colon = last.find(':');
+    if (paths.size() != 1 || colon == std::string::npos) return;
+    std::string type = last.substr(0, colon), payload = last.substr(colon + 1);
+    if (type == "texture") projectFolder = "Textures", curTexture = payload;
+    else if (type == "model") projectFolder = "Models";
+    else if (type == "sound") projectFolder = "Sounds";
+    else if (type == "sprite") projectFolder = "Sprites";
+    else if (type == "prefab") projectFolder = "Prefabs";
+    if (type == "map") {
+        projectFolder = "Maps";
+        return;
+    }
+    if (!placeAtMouse) return;
+    Vector2 mouse = GetMousePosition();
+    for (int i = 0; i < 4; ++i)
+        if (views[i].rect.width > 0 && CheckCollisionPointRec(mouse, views[i].rect) && (maximized < 0 || maximized == i)) {
+            DropAsset(i, mouse, type, payload);
+            break;
+        }
 }
 
 void Editor::Impl::NewMap() {
@@ -179,9 +320,10 @@ void Editor::Impl::NewMap() {
     ClearSelection();
     meshDirty = true;
     litPreview = false;
-    views[1].camPos = {-600, 300, 600};
-    views[1].yaw = -45;
-    views[1].pitch = -20;
+    // 3D view starts inside the starter room, behind the player start, looking in
+    views[1].camPos = {0, 110, 470};
+    views[1].yaw = 90;
+    views[1].pitch = -12;
     fitPending = true;
     SetStatus("New map");
 }

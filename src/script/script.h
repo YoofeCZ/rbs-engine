@@ -66,6 +66,7 @@ public:
     // weapons / game hooks
     void FireWeapon(int index, Entity* owner);
     void CallHook(const char* name);
+    void CallHookNumber(const char* name, float value);
     void CallHookEntity(const char* name, Entity* e);
     void FireTargetHandlers(const std::string& target, Entity* activator);
     void RunMapScript(const std::string& mapRelPath);

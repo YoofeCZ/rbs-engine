@@ -481,10 +481,15 @@ def build_plasma():
 
 def build_pistol():
     m = Mesh()
-    m.box((0, 2.6, 6), (2.8, 2.6, 13), "gunmetal")
-    m.cylinder((0, 2.4, 12), (0, 2.4, 14), 0.8, 6, "gunmetal")
-    m.box((0, -1.2, 1.5), (2.4, 6, 3.4), "wood", rot=rot_x(14))
-    m.box((0, 0.6, 5), (2.2, 1.4, 4), "gunmetal")
+    m.box((0, 3.2, 5), (2.6, 2.4, 13), "gunmetal")                 # slide
+    m.box((0, 1.6, 4.5), (2.3, 1.2, 10), "gunmetal")               # frame
+    m.cylinder((0, 3.0, 11.4), (0, 3.0, 12.6), 0.75, 6, "gunmetal")  # muzzle
+    m.box((0, -1.4, 0), (2.4, 6.2, 3.4), "wood", rot=rot_x(16))     # grip
+    m.box((0, 0.3, 3.4), (0.7, 1.8, 3.2), "gunmetal")               # trigger guard
+    m.box((0, 4.6, 10.8), (0.5, 0.7, 0.7), "gunmetal")              # front sight
+    m.box((0, 4.6, -0.8), (1.8, 0.7, 0.7), "gunmetal")              # rear sight
+    for z in (-0.4, 0.6, 1.6):
+        m.box((0, 3.3, z), (2.7, 2.0, 0.3), "armor_dark")           # slide serrations
     return m
 
 

@@ -15,6 +15,9 @@ public:
     void Update(float dt, bool consoleHasFocus);
     void Draw(int w, int h);
     void OnReturnFromPlay();
+    // copies a file or folder from disk into the active mod (or base) by type: images to
+    // textures/, models to models/, sounds to sounds/... (same as dropping it on the window)
+    void Import(const std::string& path);
 
     struct Impl;  // editor internals (editor_impl.h)
 

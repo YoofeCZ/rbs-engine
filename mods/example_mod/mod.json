@@ -1,0 +1,5 @@
+{
+  "title": "Example Lua mod",
+  "description": "Adds a grenade launcher, a new monster and an arena map using only Lua scripts.",
+  "author": "RBS Engine"
+}

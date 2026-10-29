@@ -11,7 +11,10 @@
 #include "ui/lang.h"
 
 #include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <rlgl.h>
+#include <sstream>
 
 namespace rbs {
 
@@ -31,9 +34,7 @@ bool App::Init(const LaunchOptions& opt) {
     cvars::Register("game_start_map", "maps/e1m1.json", false, "map started by New Game (set in game.cfg)");
     input::Init();
     cvars::LoadConfig();
-    // game.cfg (in base or the active mod) can set the start map, title...
-    std::string gameCfg;
-    if (vfs::ReadText("game.cfg", gameCfg)) cvars::Execute(gameCfg);
+    ApplyGameConfig();
 
     int w = opt.width, h = opt.height;
     if (Cvar* cw = cvars::Find("vid_width")) if (cw->i > 0 && opt.width == 1600) w = cw->i;
@@ -136,6 +137,21 @@ void App::ReturnToMenu() {
     m_menuSel = 0;
 }
 
+// game.cfg (in base or the active mod) sets the start map and other game variables
+void App::ApplyGameConfig() {
+    if (Cvar* start = cvars::Find("game_start_map")) start->Set(start->defaultValue);
+    std::string text;
+    if (vfs::ReadText("game.cfg", text)) cvars::ExecuteSettings(text, "game.cfg");
+}
+
+// --exec commands run once per launch (a "map" command in them must not re-trigger them)
+void App::RunStartupExec() {
+    if (m_opt.exec.empty()) return;
+    std::string cmd = m_opt.exec;
+    m_opt.exec.clear();
+    cvars::Execute(cmd);
+}
+
 void App::SetCursor(bool gameplay) {
     bool want = gameplay && !m_console.open && IsWindowFocused();
     if (want && !IsCursorHidden()) DisableCursor();
@@ -151,6 +167,13 @@ void App::RegisterCommands() {
         StartMap(a[1]);
     }, "map <name> - start a map (no argument: list maps)");
     cvars::AddCommand("editor", [this](const std::vector<std::string>& a) { OpenEditor(a.size() > 1 ? a[1] : ""); }, "editor [map] - open the level editor");
+    cvars::AddCommand("import", [this](const std::vector<std::string>& a) {
+        if (a.size() < 2) {
+            LOG_INFO("import <file or folder> - copy assets into the active mod (or base)");
+            return;
+        }
+        for (size_t i = 1; i < a.size(); ++i) m_editor->Import(a[i]);
+    }, "import <file or folder> - copy images/models/sounds/... into the active mod (also: drop files on the editor)");
     cvars::AddCommand("quit", [this](const std::vector<std::string>&) { m_quit = true; }, "exit the engine");
     cvars::AddCommand("menu", [this](const std::vector<std::string>&) { ReturnToMenu(); }, "back to the main menu");
     cvars::AddCommand("restart", [this](const std::vector<std::string>&) {
@@ -180,6 +203,21 @@ void App::RegisterCommands() {
             m_game.GiveWeapon(a[1], true);
         }
     }, "give <weapon> | give <ammo> <n> | give all");
+    cvars::AddCommand("weapon", [this](const std::vector<std::string>& a) {
+        if (!m_game.Active() || a.size() < 2) return;
+        int idx = m_game.Scripts().WeaponIndex(a[1]);
+        if (idx < 0) {
+            LOG_WARN("Unknown weapon %s", a[1].c_str());
+            return;
+        }
+        auto& ps = m_game.PS();
+        if ((int)ps.hasWeapon.size() <= idx || !ps.hasWeapon[idx]) {
+            LOG_WARN("You don't have %s (try: give %s)", a[1].c_str(), a[1].c_str());
+            return;
+        }
+        ps.weapon = ps.pendingWeapon = idx;
+        ps.switchAnim = 0;
+    }, "weapon <id> - switch weapon (pistol, shotgun, plasma, rocket...)");
     cvars::AddCommand("kill", [this](const std::vector<std::string>&) {
         if (m_game.Player()) m_game.Damage(m_game.Player(), 1000, nullptr, {0, 0, 0}, m_game.Player()->pos);
     }, "suicide");
@@ -197,9 +235,8 @@ void App::RegisterCommands() {
         m_game.PS().kick = 1.0f;
         m_game.PS().muzzleFlash = 0.06f;
     }, "fire the current weapon once (testing)");
-    cvars::AddCommand("lua", [this](const std::vector<std::string>& a) {
-        std::string code;
-        for (size_t i = 1; i < a.size(); ++i) code += a[i] + " ";
+    cvars::AddCommand("lua", [this](const std::vector<std::string>&) {
+        std::string code = cvars::CommandArgs();
         if (m_game.Active()) m_game.Scripts().RunString(code);
         else LOG_WARN("lua: no game running");
     }, "lua <code> - run Lua in the game");
@@ -215,6 +252,8 @@ void App::RegisterCommands() {
         gRenderer.ReloadShaders();
         plugins::LoadAll();
         fonts::UnloadAll();
+        ReloadLanguage();
+        ApplyGameConfig();
     }, "mod <name|base> - switch the active mod (no argument: list)");
     cvars::AddCommand("plugins", [](const std::vector<std::string>&) {
         auto list = plugins::Loaded();
@@ -276,7 +315,7 @@ void App::Run() {
                 if (m_game.RestartRequested()) m_game.Respawn();
                 if (m_game.Active() && !m_execDone && !m_game.Loading()) {
                     m_execDone = true;
-                    if (!m_opt.exec.empty()) cvars::Execute(m_opt.exec);
+                    RunStartupExec();
                 }
                 if (m_game.LevelEnded() && m_page != MenuPage::Intermission) {
                     m_page = MenuPage::Intermission;
@@ -307,6 +346,11 @@ void App::Run() {
             if (!consoleInput) UpdateMenu(dt);
         } else if (m_state == State::Editor) {
             m_editor->Update(dt, consoleInput);
+        }
+        // --exec outside of a game (menu, editor) runs once the first frame is up
+        if (m_state != State::Game && !m_execDone && m_frame > 1) {
+            m_execDone = true;
+            RunStartupExec();
         }
 
     draw:
@@ -407,7 +451,8 @@ void App::DrawMenu(int w, int h) {
         fonts::Text("title", "RBS", (float)x + 4, (float)y + 4, 110, Color{0, 0, 0, 200});
         fonts::Text("title", "RBS", (float)x, (float)y, 110, Color{200, 60, 30, 255});
         fonts::Text("title", "ENGINE", (float)x + 230, (float)y + 58, 40, kGold);
-        fonts::Text("ui", Tr("retro boomer shooter engine"), (float)x + 6, (float)y + 120, 18, kDim);
+        // sub-pages put their own title where the tagline is
+        if (m_page == MenuPage::Main) fonts::Text("ui", Tr("retro boomer shooter engine"), (float)x + 6, (float)y + 120, 18, kDim);
         y += 190;
     } else {
         y = (int)(h * 0.3f);
@@ -460,6 +505,23 @@ void App::DrawMenu(int w, int h) {
         if (MenuItem(Tr("Mods"), idx++, x, y + step * 3, size)) {
             m_page = MenuPage::Mods;
             m_menuSel = 0;
+            m_modList.clear();
+            for (auto& folder : vfs::ListMods()) {
+                ModInfo info{folder, folder, "", ""};
+                std::ifstream f(std::filesystem::path(vfs::Root()) / "mods" / folder / "mod.json");
+                auto j = nlohmann::json::parse(f, nullptr, false, true);
+                if (j.is_object()) {
+                    info.title = j.value("title", folder);
+                    info.description = j.value("description", "");
+                    info.author = j.value("author", "");
+                }
+                std::error_code ec;
+                for (auto& e : std::filesystem::directory_iterator(std::filesystem::path(vfs::Root()) / "mods" / folder / "plugins", ec)) {
+                    std::string ext = ToLower(e.path().extension().string());
+                    if (ext == ".dll" || ext == ".so" || ext == ".dylib") info.nativePlugins++;
+                }
+                m_modList.push_back(info);
+            }
         }
         if (MenuItem(Tr("Options"), idx++, x, y + step * 4, size)) {
             m_page = MenuPage::Options;
@@ -467,7 +529,7 @@ void App::DrawMenu(int w, int h) {
         }
         if (MenuItem(Tr("Quit"), idx++, x, y + step * 5, size)) m_quit = true;
         std::string mod = vfs::CurrentMod().empty() ? "base" : vfs::CurrentMod();
-        fonts::Text("ui", TextFormat("v%s   mod: %s   ` = console", RBS_VERSION, mod.c_str()), 16, h - 30.0f, 16, kDim);
+        fonts::Text("ui", TextFormat("v%s   mod: %s   F1 = %s", RBS_VERSION, mod.c_str(), Tr("console")), 16, h - 30.0f, 16, kDim);
         return;
     }
 
@@ -492,18 +554,43 @@ void App::DrawMenu(int w, int h) {
 
     if (m_page == MenuPage::Mods) {
         fonts::Text("title", Tr("MODS"), (float)x, (float)y - 70, 40, kGold);
-        auto mods = vfs::ListMods();
-        int n = (int)mods.size() + 2;
+        int n = (int)m_modList.size() + 2;
         m_menuSel = (m_menuSel % n + n) % n;
         std::string cur = vfs::CurrentMod();
         if (MenuItem(cur.empty() ? "* base" : "  base", 0, x, y, 28)) cvars::Execute("mod base");
-        for (size_t i = 0; i < mods.size(); ++i) {
-            std::string label = (cur == mods[i] ? "* " : "  ") + mods[i];
-            if (MenuItem(label.c_str(), (int)i + 1, x, y + (int)(i + 1) * 40, 28)) cvars::Execute("mod " + mods[i]);
+        for (size_t i = 0; i < m_modList.size(); ++i) {
+            const ModInfo& m = m_modList[i];
+            std::string label = (cur == m.folder ? "* " : "  ") + m.title;
+            if (MenuItem(label.c_str(), (int)i + 1, x, y + (int)(i + 1) * 40, 28)) cvars::Execute("mod " + m.folder);
         }
         if (MenuItem(Tr("Back"), n - 1, x, y + (n - 1) * 40 + 10, 28)) {
             m_page = MenuPage::Main;
             m_menuSel = 3;
+        }
+        float infoY = (float)y + n * 40 + 40;
+        if (m_menuSel == 0) {
+            fonts::Text("ui", Tr("The base game without mods."), (float)x, infoY, 18, kDim);
+        } else if (m_menuSel <= (int)m_modList.size()) {
+            const ModInfo& m = m_modList[m_menuSel - 1];
+            std::string info = "mods/" + m.folder + (m.author.empty() ? "" : "   -   " + m.author);
+            fonts::Text("ui", info.c_str(), (float)x, infoY, 16, kDim);
+            // word-wrapped description
+            std::string line;
+            float ly = infoY + 24, maxW = w - x - 40.0f;
+            std::istringstream words(m.description);
+            for (std::string word; words >> word;) {
+                std::string next = line.empty() ? word : line + " " + word;
+                if (!line.empty() && fonts::Width("ui", next.c_str(), 18) > maxW) {
+                    fonts::Text("ui", line.c_str(), (float)x, ly, 18, Color{200, 185, 165, 255});
+                    ly += 24;
+                    next = word;
+                }
+                line = next;
+            }
+            if (!line.empty()) fonts::Text("ui", line.c_str(), (float)x, ly, 18, Color{200, 185, 165, 255});
+            if (m.nativePlugins > 0)
+                fonts::Text("ui", Tr("Contains native plugins: they run with full access to your computer. Only use mods you trust."), (float)x,
+                            ly + 30, 16, Color{255, 170, 60, 255});
         }
         fonts::Text("ui", Tr("Mods live in the mods/ folder. A mod can override or add any file."), (float)x, h - 60.0f, 16, kDim);
         return;

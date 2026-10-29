@@ -225,11 +225,14 @@ Vector3 Editor::Impl::PlacementPoint(int vi, Vector2 mouse, const ClassInfo* ci)
 
 void Editor::Impl::HandleDrop(int vi) {
     if (!ui::DragReleased() || vi < 0) return;
-    EditorView& v = views[vi];
     Vector2 mouse = GetMousePosition();
-    if (!CheckCollisionPointRec(mouse, v.rect)) return;
-    const std::string& type = ui::DragType();
-    const std::string& payload = ui::DragPayload();
+    if (!CheckCollisionPointRec(mouse, views[vi].rect)) return;
+    DropAsset(vi, mouse, ui::DragType(), ui::DragPayload());
+}
+
+// Places an asset dropped into a view: from the Project panel or imported from the OS.
+void Editor::Impl::DropAsset(int vi, Vector2 mouse, const std::string& type, const std::string& payload) {
+    EditorView& v = views[vi];
     if (type == "texture") {
         if (v.kind == ViewKind::Persp) {
             Ray ray = GetScreenToWorldRayEx({mouse.x - v.rect.x, mouse.y - v.rect.y}, v.Camera(), (int)v.rect.width, (int)v.rect.height);

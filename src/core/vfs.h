@@ -23,6 +23,9 @@ std::vector<std::string> ListMods();
 
 // Resolves a relative game path ("textures/brick.png") to a real file path, or "".
 std::string Resolve(const std::string& relPath);
+// Like Resolve, but tries every extension in each layer before moving to the next one,
+// so a mod's "textures/brick.tga" overrides base's "textures/brick.png".
+std::string ResolveAny(const std::string& relStem, const std::vector<std::string>& exts);
 bool Exists(const std::string& relPath);
 bool ReadText(const std::string& relPath, std::string& out);
 bool WriteText(const std::string& relPath, const std::string& text);  // writes into WriteDir()

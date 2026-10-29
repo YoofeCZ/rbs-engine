@@ -44,12 +44,12 @@ function rbs.draw_hud(w, h)
 
   local hp = math.max(0, math.floor(p.health + 0.5))
   local hcol = hp <= 25 and {r = 255, g = 80, b = 60, a = 255} or CREAM
-  rbs.draw_text("HEALTH", px + 51 * s, py + 5 * s, math.floor(12 * s), GOLD, "center")
+  rbs.draw_text(rbs.tr("HEALTH"), px + 51 * s, py + 5 * s, math.floor(12 * s), GOLD, "center")
   rbs.draw_text(tostring(hp), px + 51 * s, py + 19 * s, math.floor(38 * s), hcol, "center", true)
 
   local ammo = info.infinite and "\u{221E}" or tostring(info.ammo or 0)
   local acol = (not info.infinite and (info.ammo or 0) <= 5) and {r = 255, g = 80, b = 60, a = 255} or CREAM
-  rbs.draw_text("AMMO", px + pw - 51 * s, py + 5 * s, math.floor(12 * s), GOLD, "center")
+  rbs.draw_text(rbs.tr("AMMO"), px + pw - 51 * s, py + 5 * s, math.floor(12 * s), GOLD, "center")
   if info.infinite then
     rbs.draw_text(ammo, px + pw - 51 * s, py + 14 * s, math.floor(44 * s), acol, "center", true, "ui_bold")
   else
@@ -60,7 +60,7 @@ function rbs.draw_hud(w, h)
   if p.armor > 0 then
     local ax = px - 96 * s
     panel(ax, py + 14 * s, 88 * s, ph - 14 * s, s)
-    rbs.draw_text("ARMOR", ax + 44 * s, py + 18 * s, math.floor(11 * s), GOLD, "center")
+    rbs.draw_text(rbs.tr("ARMOR"), ax + 44 * s, py + 18 * s, math.floor(11 * s), GOLD, "center")
     rbs.draw_text(tostring(math.floor(p.armor)), ax + 44 * s, py + 30 * s, math.floor(28 * s), {r = 140, g = 190, b = 255, a = 255}, "center", true)
   end
 
@@ -82,11 +82,11 @@ function rbs.draw_hud(w, h)
     local gx, gy = w - gw - 14 * s, h - gh - 14 * s
     panel(gx, gy, gw, gh, s)
     rbs.draw_rect(gx, gy, gw, 24 * s, {r = 70, g = 52, b = 36, a = 255})
-    rbs.draw_text("MISSION GOALS", gx + gw / 2, gy + 5 * s, math.floor(15 * s), GOLD, "center")
+    rbs.draw_text(rbs.tr("MISSION GOALS"), gx + gw / 2, gy + 5 * s, math.floor(15 * s), GOLD, "center")
     for i, o in ipairs(info.objectives) do
       local y = gy + 30 * s + (i - 1) * lineh
       local c = o.done and {r = 120, g = 200, b = 110, a = 255} or CREAM
-      rbs.draw_text((o.done and "[x] " or "[ ] ") .. o.text, gx + 12 * s, y, math.floor(15 * s), c, "left", false, "ui")
+      rbs.draw_text((o.done and "[x] " or "[ ] ") .. rbs.tr(o.text), gx + 12 * s, y, math.floor(15 * s), c, "left", false, "ui")
     end
   end
 end

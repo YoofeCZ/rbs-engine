@@ -18,3 +18,10 @@ __pycache__/
 .vs/
 .vscode/
 .idea/
+# compiled native plugins (build them from sdk/examples)
+mods/*/plugins/*.so
+mods/*/plugins/*.dll
+mods/*/plugins/*.dylib
+base/plugins/*.so
+base/plugins/*.dll
+base/plugins/*.dylib

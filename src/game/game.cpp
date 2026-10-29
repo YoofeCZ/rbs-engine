@@ -437,6 +437,7 @@ void Game::Update(float dt, bool input) {
     UpdatePlayer(dt, input);
     UpdateEntities(dt);
     CheckTriggers();
+    m_script.CallHookNumber("on_update", dt);
     m_fx.Update(dt, m_world, m_map, m_lightmap, m_map.settings.gravity);
     CleanupRemoved();
     UpdateCamera(dt);

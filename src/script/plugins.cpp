@@ -131,6 +131,7 @@ static float Api_get_float(rbs_entity id, const char* p) {
     if (k == "anim_done") return e->animDone;
     if (k == "anim_loop") return e->animLoop;
     if (k == "sprite_size") return e->spriteSize;
+    if (k == "sprite_additive") return e->spriteAdditive;
     if (k == "light_radius") return e->lightRadius;
     if (k == "spin") return e->spin;
     if (k == "bob") return e->bobAmount;
@@ -166,6 +167,7 @@ static void Api_set_float(rbs_entity id, const char* p, float v) {
     else if (k == "anim_time") e->animTime = v, e->animDone = false;
     else if (k == "anim_loop") e->animLoop = v != 0;
     else if (k == "sprite_size") e->spriteSize = v;
+    else if (k == "sprite_additive") e->spriteAdditive = v != 0;
     else if (k == "light_radius") e->lightRadius = v;
     else if (k == "spin") e->spin = v;
     else if (k == "bob") e->bobAmount = v;

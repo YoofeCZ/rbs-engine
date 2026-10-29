@@ -42,6 +42,7 @@ void ReloadAll();  // drops caches (after a mod switch)
 // Texture names are relative to textures/ without extension ("brick_red").
 // Special tool textures: sky, clip, trigger, nodraw.
 TextureInfo& GetTexture(const std::string& name);
+void ReloadTexture(const std::string& name);  // after its file was added or replaced (editor import)
 Texture2D GetTexturePath(const std::string& relPath);  // any image path ("sprites/flare.png")
 bool IsToolTexture(const std::string& name);           // invisible in game
 std::vector<std::string> ListTextures();

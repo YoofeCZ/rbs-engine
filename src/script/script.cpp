@@ -5,6 +5,7 @@
 #include "game/game.h"
 #include "render/assets.h"
 #include "ui/fonts.h"
+#include "ui/lang.h"
 
 extern "C" {
 #include <lauxlib.h>
@@ -155,6 +156,11 @@ function rbs._fire(target, activator)
     for _, fn in ipairs(list) do fn(activator) end
   end
 end
+
+-- sandbox: no native libraries from Lua (that is what plugins are for), no bytecode
+package.loadlib = nil
+local raw_load = load
+load = function(chunk, name, mode, env) return raw_load(chunk, name, "t", env) end
 
 -- require() loads from the virtual file system: require "monsters.grunt" -> scripts/monsters/grunt.lua
 package.path = ""
@@ -682,16 +688,26 @@ static int L_log(lua_State* L) {
     return 0;
 }
 
+// Scripts may only touch game files (relative paths inside base/ or the mod), never the rest
+// of the disk: mods are untrusted content.
+static bool SafeGamePath(const std::string& p) {
+    if (p.empty() || p[0] == '/' || p[0] == '\\' || p.find(':') != std::string::npos) return false;
+    for (const std::string& part : {std::string("../"), std::string("..\\")})
+        if (p.find(part) != std::string::npos) return false;
+    return p != ".." && !EndsWith(p, "/..") && !EndsWith(p, "\\..");
+}
+
 static int L_loadfile(lua_State* L) {
     const char* path = luaL_checkstring(L, 1);
     std::string text;
-    if (!vfs::ReadText(path, text)) {
+    if (!SafeGamePath(path) || !vfs::ReadText(path, text)) {
         lua_pushnil(L);
         lua_pushstring(L, "not found");
         return 2;
     }
     std::string chunk = std::string("@") + path;
-    if (luaL_loadbuffer(L, text.data(), text.size(), chunk.c_str()) != LUA_OK) {
+    // "t": source only - precompiled bytecode can break out of the sandbox
+    if (luaL_loadbufferx(L, text.data(), text.size(), chunk.c_str(), "t") != LUA_OK) {
         lua_pushnil(L);
         lua_insert(L, -2);
         return 2;
@@ -702,9 +718,9 @@ static int L_loadfile(lua_State* L) {
 static int L_dofile(lua_State* L) {
     const char* path = luaL_checkstring(L, 1);
     std::string text;
-    if (!vfs::ReadText(path, text)) return luaL_error(L, "script not found: %s", path);
+    if (!SafeGamePath(path) || !vfs::ReadText(path, text)) return luaL_error(L, "script not found: %s", path);
     std::string chunk = std::string("@") + path;
-    if (luaL_loadbuffer(L, text.data(), text.size(), chunk.c_str()) != LUA_OK) return lua_error(L);
+    if (luaL_loadbufferx(L, text.data(), text.size(), chunk.c_str(), "t") != LUA_OK) return lua_error(L);
     lua_call(L, 0, LUA_MULTRET);
     return lua_gettop(L) - 1;
 }
@@ -1240,7 +1256,8 @@ static int L_add_component(lua_State* L) {
 
 static int L_read_file(lua_State* L) {
     std::string text;
-    if (!vfs::ReadText(luaL_checkstring(L, 1), text)) {
+    const char* path = luaL_checkstring(L, 1);
+    if (!SafeGamePath(path) || !vfs::ReadText(path, text)) {
         lua_pushnil(L);
         return 1;
     }
@@ -1310,6 +1327,12 @@ static int L_image_size(lua_State* L) {
     return 2;
 }
 
+// rbs.tr("New game") -> text in the language chosen in Options (lang/<code>.json)
+static int L_tr(lua_State* L) {
+    lua_pushstring(L, Tr(luaL_checkstring(L, 1)));
+    return 1;
+}
+
 static const luaL_Reg kApi[] = {
     {"log", L_log}, {"_loadfile", L_loadfile}, {"dofile", L_dofile}, {"_register_class", L_register_class},
     {"_register_weapon", L_register_weapon}, {"_register_component", L_register_component}, {"spawn", L_spawn}, {"remove", L_remove}, {"find", L_find},
@@ -1325,7 +1348,7 @@ static const luaL_Reg kApi[] = {
     {"hud_info", L_hud_info}, {"light_at", L_light_at}, {"read_file", L_read_file},
     {"model_bounds", L_model_bounds}, {"add_component", L_add_component}, {"screen", L_screen},
     {"draw_text", L_draw_text}, {"text_width", L_text_width}, {"draw_rect", L_draw_rect},
-    {"draw_image", L_draw_image}, {"image_size", L_image_size}, {nullptr, nullptr}};
+    {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class
@@ -1420,20 +1443,33 @@ bool Script::Init(Game* g) {
         LOG_ERR("scripts/init.lua not found");
         return false;
     }
-    if (luaL_loadbuffer(L, text.data(), text.size(), "@scripts/init.lua") != LUA_OK) {
+    if (luaL_loadbufferx(L, text.data(), text.size(), "@scripts/init.lua", "t") != LUA_OK) {
         LOG_ERR("Lua: %s", lua_tostring(L, -1));
         lua_pop(L, 1);
         return false;
     }
     bool ok = CallFunction(0, "scripts/init.lua");
     lua_pop(L, 1);
+    // additive scripts from every layer (base + active mod): scripts/autorun/*.lua
+    for (auto& rel : vfs::List("scripts/autorun", ".lua")) {
+        std::string code;
+        if (!vfs::ReadText(rel, code)) continue;
+        std::string chunk = "@" + rel;
+        if (luaL_loadbufferx(L, code.data(), code.size(), chunk.c_str(), "t") != LUA_OK) {
+            LOG_ERR("Lua: %s", lua_tostring(L, -1));
+            lua_pop(L, 1);
+            continue;
+        }
+        CallFunction(0, rel.c_str());
+        lua_pop(L, 1);
+    }
     LOG_INFO("Scripts loaded: %d entity classes, %d weapons", (int)classes.size(), (int)weapons.size());
     return ok;
 }
 
 void Script::RunString(const std::string& code) {
     if (!L) return;
-    if (luaL_loadbuffer(L, code.data(), code.size(), "=console") != LUA_OK) {
+    if (luaL_loadbufferx(L, code.data(), code.size(), "=console", "t") != LUA_OK) {
         LOG_ERR("Lua: %s", lua_tostring(L, -1));
         lua_pop(L, 1);
         return;
@@ -1449,7 +1485,7 @@ void Script::RunMapScript(const std::string& mapRelPath) {
     std::string text;
     if (!vfs::ReadText(path, text)) return;
     std::string chunk = "@" + path;
-    if (luaL_loadbuffer(L, text.data(), text.size(), chunk.c_str()) != LUA_OK) {
+    if (luaL_loadbufferx(L, text.data(), text.size(), chunk.c_str(), "t") != LUA_OK) {
         LOG_ERR("Lua: %s", lua_tostring(L, -1));
         lua_pop(L, 1);
         return;
@@ -1733,6 +1769,20 @@ void Script::CallHook(const char* name) {
         return;
     }
     CallFunction(0, name);
+    lua_pop(L, 1);
+}
+
+void Script::CallHookNumber(const char* name, float value) {
+    if (!L) return;
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, name);
+    lua_remove(L, -2);
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+    lua_pushnumber(L, value);
+    CallFunction(1, name);
     lua_pop(L, 1);
 }
 

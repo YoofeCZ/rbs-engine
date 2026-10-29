@@ -87,6 +87,20 @@ std::string Resolve(const std::string& rel) {
     return {};
 }
 
+std::string ResolveAny(const std::string& stem, const std::vector<std::string>& exts) {
+    std::error_code ec;
+    for (auto& layer : g_layers)
+        for (auto& ext : exts) {
+            fs::path p = fs::path(layer) / (stem + ext);
+            if (fs::exists(p, ec)) return p.string();
+        }
+    for (auto& ext : exts) {  // absolute paths and extra texture folders
+        std::string p = Resolve(stem + ext);
+        if (!p.empty()) return p;
+    }
+    return {};
+}
+
 bool Exists(const std::string& rel) { return !Resolve(rel).empty(); }
 
 bool ReadText(const std::string& rel, std::string& out) {

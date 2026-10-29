@@ -15,12 +15,17 @@ void ReloadLanguage() {
     if (!g_lang) g_lang = cvars::Register("lang", "en", true, "user interface language (en, cs, ... see lang/)");
     g_strings.clear();
     g_loaded = g_lang->value;
-    std::string text;
-    if (!vfs::ReadText("lang/" + g_loaded + ".json", text)) return;
-    auto j = nlohmann::json::parse(text, nullptr, false, true);
-    if (j.is_discarded() || !j.is_object()) return;
-    for (auto it = j.begin(); it != j.end(); ++it)
-        if (it.value().is_string()) g_strings[it.key()] = it.value().get<std::string>();
+    auto load = [](const std::string& rel) {
+        std::string text;
+        if (!vfs::ReadText(rel, text)) return;
+        auto j = nlohmann::json::parse(text, nullptr, false, true);
+        if (j.is_discarded() || !j.is_object()) return;
+        for (auto it = j.begin(); it != j.end(); ++it)
+            if (it.value().is_string()) g_strings[it.key()] = it.value().get<std::string>();
+    };
+    // lang/cs.json, then extra files from mods and plugins: lang/cs/*.json
+    load("lang/" + g_loaded + ".json");
+    for (auto& f : vfs::List("lang/" + g_loaded, ".json")) load(f);
 }
 
 const char* Tr(const char* key) {

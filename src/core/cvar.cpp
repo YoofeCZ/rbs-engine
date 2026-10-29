@@ -3,6 +3,7 @@
 #include "core/log.h"
 #include "core/vfs.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -78,13 +79,22 @@ std::vector<Cvar*> All() {
 
 void AddCommand(const std::string& name, CommandFn fn, const char* help) { Commands()[name] = {std::move(fn), help ? help : ""}; }
 
+static std::string g_commandArgs;
+const std::string& CommandArgs() { return g_commandArgs; }
+
 static void ExecuteOne(const std::string& line) {
     auto args = SplitWords(line);
     if (args.empty()) return;
     std::string cmd = ToLower(args[0]);
     auto cit = Commands().find(cmd);
     if (cit != Commands().end()) {
+        size_t start = line.find_first_not_of(" \t");
+        size_t end = line.find_first_of(" \t", start);
+        size_t rest = end == std::string::npos ? std::string::npos : line.find_first_not_of(" \t", end);
+        std::string saved = g_commandArgs;  // commands can run other commands
+        g_commandArgs = rest == std::string::npos ? "" : line.substr(rest);
         cit->second.fn(args);
+        g_commandArgs = saved;
         return;
     }
     if (Cvar* cv = Find(cmd)) {
@@ -108,6 +118,20 @@ void Execute(const std::string& text) {
         }
     }
     ExecuteOne(cur);
+}
+
+void ExecuteSettings(const std::string& text, const char* source) {
+    std::istringstream in(text);
+    std::string line;
+    while (std::getline(in, line)) {
+        auto words = SplitWords(line);
+        if (words.empty() || StartsWith(words[0], "//")) continue;
+        if (Commands().count(ToLower(words[0]))) {
+            LOG_WARN("%s: only variables can be set here, ignoring command '%s'", source, words[0].c_str());
+            continue;
+        }
+        if (words.size() >= 2) Set(words[0], words[1]);
+    }
 }
 
 std::vector<std::string> Complete(const std::string& prefix) {
@@ -142,8 +166,17 @@ void SaveConfig() {
     std::ofstream f(ConfigPath());
     if (!f) return;
     f << "// RBS Engine config - generated, edit freely\n";
-    for (auto& kv : Vars())
-        if (kv.second->archive) f << kv.first << " \"" << kv.second->value << "\"\n";
+    // Values come from scripts too: a quote or line break inside one must not be able to
+    // smuggle a command into the file (it is executed on the next start).
+    auto validName = [](const std::string& n) {
+        return !n.empty() && std::all_of(n.begin(), n.end(), [](unsigned char c) { return isalnum(c) || c == '_'; });
+    };
+    for (auto& kv : Vars()) {
+        if (!kv.second->archive || !validName(kv.first)) continue;
+        std::string v = kv.second->value;
+        v.erase(std::remove_if(v.begin(), v.end(), [](char c) { return c == '"' || c == '\n' || c == '\r'; }), v.end());
+        f << kv.first << " \"" << v << "\"\n";
+    }
 }
 
 static struct BuiltinCommands {

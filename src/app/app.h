@@ -53,6 +53,11 @@ private:
     int m_frame = 0;
     bool m_execDone = false;
     std::vector<std::string> m_mapList;
+    struct ModInfo {
+        std::string folder, title, description, author;
+        int nativePlugins = 0;  // .dll/.so/.dylib files in the mod's plugins/ folder
+    };
+    std::vector<ModInfo> m_modList;  // filled when the Mods page opens (from mods/*/mod.json)
     float m_intermissionTime = 0;
     GameStats m_lastStats;
     struct Ember {
@@ -68,6 +73,8 @@ private:
     void DrawLoading(int w, int h);
     bool MenuItem(const char* label, int index, int x, int y, int size, bool enabled = true);
     void SetCursor(bool gameplay);
+    void RunStartupExec();
+    void ApplyGameConfig();
 };
 
 }  // namespace rbs

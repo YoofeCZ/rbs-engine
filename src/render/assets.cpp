@@ -18,7 +18,7 @@ static Shader g_modelShader{};
 static bool g_haveModelShader = false;
 static Cvar* r_texfilter = nullptr;
 
-static const char* kImageExts[] = {".png", ".tga", ".jpg", ".bmp", ".qoi"};
+static const std::vector<std::string> kImageExts = {".png", ".tga", ".jpg", ".bmp", ".qoi"};
 
 void Init() { r_texfilter = cvars::Register("r_texfilter", "1", true, "0 = nearest (crunchy), 1 = bilinear, 2 = trilinear"); }
 
@@ -61,11 +61,7 @@ TextureInfo& GetTexture(const std::string& name) {
     if (it != g_textures.end()) return it->second;
     TextureInfo info;
     info.name = name;
-    std::string path;
-    for (const char* ext : kImageExts) {
-        path = vfs::Resolve("textures/" + name + ext);
-        if (!path.empty()) break;
-    }
+    std::string path = vfs::ResolveAny("textures/" + name, kImageExts);
     if (!path.empty()) info.tex = LoadTex(path, &info.hasAlpha);
     if (info.tex.id == 0) {
         if (name != "sky" && !IsToolTexture(name)) LOG_WARN("Missing texture: %s", name.c_str());
@@ -82,6 +78,14 @@ TextureInfo& GetTexture(const std::string& name) {
         }
     }
     return g_textures[name] = info;
+}
+
+void ReloadTexture(const std::string& name) {
+    auto it = g_textures.find(name);
+    if (it == g_textures.end()) return;
+    UnloadTexture(it->second.tex);
+    g_textures.erase(it);
+    GetTexture(name);
 }
 
 Texture2D GetTexturePath(const std::string& rel) {
@@ -102,7 +106,7 @@ std::vector<std::string> ListTextures() {
     for (auto& f : vfs::List("textures", "", true)) {
         std::string lower = ToLower(f);
         bool img = false;
-        for (const char* ext : kImageExts)
+        for (auto& ext : kImageExts)
             if (EndsWith(lower, ext)) img = true;
         if (!img) continue;
         std::string name = f.substr(9);  // strip "textures/"

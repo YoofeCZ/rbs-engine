@@ -160,6 +160,11 @@ struct Editor::Impl {
     bool PickRay(Ray ray, int* brush, int* face, int* ent, float* dist) const;
     bool Pick2D(int vi, Vector2 mouse, bool add);
     void HandleDrop(int vi);
+    void DropAsset(int vi, Vector2 mouse, const std::string& type, const std::string& payload);
+    // files dragged in from the OS file manager are copied into the mod (or base) by type
+    void HandleDroppedFiles();
+    void ImportPaths(const std::vector<std::string>& paths, bool placeAtMouse);
+    std::string ImportFile(const std::string& src, int& count);  // returns "type:path" of the last asset
     Vector3 PlacementPoint(int vi, Vector2 mouse, const ClassInfo* ci);
 
     // ---- panels (editor_panels.cpp) ----

@@ -5,7 +5,7 @@ rbs.weapon{
   id = "pistol", slot = 1, name = "Pistol",
   model = "models/weapons/v_pistol.glb",
   fire_rate = 0.32, automatic = false, recoil = 1.0,
-  view_offset = {7, -7.5, 13}, muzzle = {0, 2.6, 14},
+  view_offset = {6, -6.5, 15}, view_rotation = {0, 4, 0}, view_scale = 1.0, muzzle = {0, 2.6, 14},
   flash_color = {1.0, 0.75, 0.35}, flash_size = 10,
   fire = function(player)
     rbs.sound("sounds/pistol.wav", nil, 0.8, 0.95 + math.random() * 0.1)
@@ -18,7 +18,7 @@ rbs.weapon{
   model = "models/weapons/v_shotgun.glb",
   ammo = "shells", ammo_per_shot = 2, start_ammo = 24,
   fire_rate = 0.95, automatic = true, recoil = 2.2,
-  view_offset = {6.5, -8, 12}, muzzle = {0, 2.5, 34},
+  view_offset = {6.5, -8, 12}, view_rotation = {0, 2.5, 0}, muzzle = {0, 2.5, 34},
   flash_color = {1.0, 0.7, 0.3}, flash_size = 26,
   fire = function(player)
     rbs.sound("sounds/shotgun.wav", nil, 1.0, 0.95 + math.random() * 0.1)
@@ -35,7 +35,7 @@ rbs.weapon{
   model = "models/weapons/v_plasma.glb",
   ammo = "cells", ammo_per_shot = 1, start_ammo = 60,
   fire_rate = 0.085, automatic = true, recoil = 0.35,
-  view_offset = {6.5, -8, 13}, muzzle = {0, 2.8, 30},
+  view_offset = {8, -8.5, 12}, view_rotation = {0, 3, 0}, view_scale = 0.9, muzzle = {0, 2.8, 30},
   flash_color = {0.4, 0.7, 1.6}, flash_size = 14,
   fire = function(player)
     rbs.sound("sounds/plasma.wav", nil, 0.6, 0.95 + math.random() * 0.1)
@@ -50,7 +50,7 @@ rbs.weapon{
   model = "models/weapons/v_rocket.glb",
   ammo = "rockets", ammo_per_shot = 1, start_ammo = 8,
   fire_rate = 0.8, automatic = true, recoil = 2.5,
-  view_offset = {7, -8.5, 12}, muzzle = {0, 3, 30},
+  view_offset = {8.5, -9, 11}, view_rotation = {0, 3, 0}, view_scale = 0.9, muzzle = {0, 3, 30},
   flash_color = {1.2, 0.6, 0.2}, flash_size = 22,
   fire = function(player)
     rbs.sound("sounds/rocket_fire.wav", nil, 1.0)

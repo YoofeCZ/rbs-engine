@@ -1,6 +1,8 @@
 // RBS Engine - game rendering: world, entities, view weapon, HUD.
 #include "core/cvar.h"
 #include "game/game.h"
+#include "ui/fonts.h"
+#include "ui/lang.h"
 
 #include <rlgl.h>
 
@@ -36,8 +38,11 @@ void Game::DrawEntities(const Camera3D& cam) {
         }
         float bob = e->bobAmount > 0 ? sinf(m_time * 2.5f + e->id) * e->bobAmount : 0.0f;
         Vector3 p = e->pos + Vector3{0, e->mins.y + bob, 0} + e->modelOffset;
-        Matrix xf = MatrixMultiply(MatrixScale(e->modelScale, e->modelScale, e->modelScale),
-                                   MatrixMultiply(MatrixRotateZ(e->angles.z * DEG2RAD), MatrixRotateY((e->angles.y + 90.0f) * DEG2RAD)));
+        // walking monsters only turn around; projectiles, gibs and turrets also pitch
+        float pitch = e->movetype == MoveType::Walk ? 0.0f : e->angles.x;
+        Matrix rot = MatrixMultiply(MatrixMultiply(MatrixRotateX(-pitch * DEG2RAD), MatrixRotateZ(e->angles.z * DEG2RAD)),
+                                    MatrixRotateY((e->angles.y + 90.0f) * DEG2RAD));
+        Matrix xf = MatrixMultiply(MatrixScale(e->modelScale, e->modelScale, e->modelScale), rot);
         xf = MatrixMultiply(xf, MatrixTranslate(p.x, p.y, p.z));
         gRenderer.DrawModelLit(m, xf, e->lightAmbient, e->lightDirColor, e->lightDir, e->tint, e->flash * 0.6f, e->fullbright);
     }
@@ -98,7 +103,8 @@ void Game::DrawViewWeapon(float aspect) {
     Matrix xf = MatrixMultiply(MatrixMultiply(MatrixScale(w.viewScale, w.viewScale, w.viewScale), local), basis);
 
     gRenderer.Begin3D(vc, aspect, 0.5f, 600.0f, 0.0f, 0.02f);
-    Vector3 amb = m_player->lightAmbient + Vector3{0.05f, 0.05f, 0.05f};
+    // keep the weapon readable even in dark corners
+    Vector3 amb = VMax(m_player->lightAmbient + Vector3{0.05f, 0.05f, 0.05f}, Vector3{0.32f, 0.3f, 0.28f});
     float flash = m_ps.muzzleFlash > 0 ? 0.15f : 0.0f;
     gRenderer.DrawModelLit(m, xf, amb, m_player->lightDirColor, m_player->lightDir, WHITE, flash);
     if (m_ps.muzzleFlash > 0 && w.flashSize > 0) {
@@ -201,12 +207,13 @@ void Game::DrawHud(int w, int h) {
     if (!m_active) return;
     if (!m_script.DrawHud(w, h)) DrawFallbackHud(w, h);
     if (m_messageTime > 0 && !m_message.empty()) {
-        Font f = GetFontDefault();
-        float size = 20;
-        Vector2 ms = MeasureTextEx(f, m_message.c_str(), size, 2);
-        Color c{255, 230, 180, (unsigned char)(255 * Clampf(m_messageTime, 0, 1))};
-        DrawTextEx(f, m_message.c_str(), {w * 0.5f - ms.x * 0.5f + 2, h * 0.3f + 2}, size, 2, Color{0, 0, 0, c.a});
-        DrawTextEx(f, m_message.c_str(), {w * 0.5f - ms.x * 0.5f, h * 0.3f}, size, 2, c);
+        float size = std::max(18.0f, h / 900.0f * 26.0f);
+        Font f = fonts::Get("title", (int)size);
+        const char* text = Tr(m_message.c_str());  // messages can be translated in lang/<code>.json
+        Vector2 ms = MeasureTextEx(f, text, size, 0);
+        Color c{245, 225, 185, (unsigned char)(255 * Clampf(m_messageTime, 0, 1))};
+        DrawTextEx(f, text, {roundf(w * 0.5f - ms.x * 0.5f + 2), roundf(h * 0.3f + 2)}, size, 0, Color{0, 0, 0, (unsigned char)(c.a * 0.8f)});
+        DrawTextEx(f, text, {roundf(w * 0.5f - ms.x * 0.5f), roundf(h * 0.3f)}, size, 0, c);
     }
     if (hud_debug && hud_debug->i) {
         std::string t = DebugText();
