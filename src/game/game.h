@@ -66,7 +66,7 @@ public:
 
     // Starts loading a map (VFS path "maps/e1m1.json"). Lighting bakes in the background.
     bool LoadMap(const std::string& relPath, bool keepInventory = false);
-    bool LoadMapData(const Map& map, const std::string& name, bool keepInventory = false);
+    bool LoadMapData(const Map& map, const std::string& name, bool keepInventory = false, const std::string& relPath = "");
     void Unload();
     bool Loading() const { return m_loading; }
     float LoadProgress() const { return m_lightmap.Progress(); }

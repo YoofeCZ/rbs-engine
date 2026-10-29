@@ -31,15 +31,13 @@ bool Game::LoadMap(const std::string& relPath, bool keepInventory) {
         LOG_ERR("Cannot load map %s: %s", relPath.c_str(), err.c_str());
         return false;
     }
-    m_mapPath = relPath;
-    return LoadMapData(map, std::filesystem::path(relPath).stem().string(), keepInventory);
+    return LoadMapData(map, std::filesystem::path(relPath).stem().string(), keepInventory, relPath);
 }
 
-bool Game::LoadMapData(const Map& map, const std::string& name, bool keepInventory) {
+bool Game::LoadMapData(const Map& map, const std::string& name, bool keepInventory, const std::string& relPath) {
     Carry carry = keepInventory ? MakeCarry() : Carry{};
-    std::string path = m_mapPath;
     Unload();
-    m_mapPath = path.empty() ? "maps/" + name + ".json" : path;
+    m_mapPath = relPath.empty() ? "maps/" + name + ".json" : relPath;
     m_carry = carry;
     m_map = map;
     m_mapName = name;
@@ -181,9 +179,9 @@ Carry Game::MakeCarry() const {
 void Game::Respawn() {
     m_restart = false;
     Map copy = m_map;
-    std::string name = m_mapName;
-    // lightmap placement is already stored in the map copy, so the bake comes from cache
-    LoadMapData(copy, name, false);
+    std::string name = m_mapName, path = m_mapPath;
+    // the map content is unchanged, so the lightmap comes straight from the cache
+    LoadMapData(copy, name, false, path);
 }
 
 // ---------------------------------------------------------------------------------

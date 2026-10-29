@@ -16,9 +16,10 @@ public:
     void Draw(int w, int h);
     void OnReturnFromPlay();
 
+    struct Impl;  // editor internals (editor_impl.h)
+
 private:
     App* m_app;
-    struct Impl;
     Impl* m;
 };
 

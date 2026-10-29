@@ -117,7 +117,7 @@ void App::PlayFromEditor(const Map& map, const std::string& name, Vector3* spawn
     }
     m_fromEditor = true;
     m_paused = false;
-    m_game.LoadMapData(copy, name.empty() ? "untitled" : name);
+    m_game.LoadMapData(copy, name.empty() ? "untitled" : name, false, "maps/" + (name.empty() ? std::string("untitled") : name) + ".json");
     m_state = State::Game;
 }
 
