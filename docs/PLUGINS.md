@@ -100,7 +100,7 @@ public static unsafe class Plugin {
     }
 }
 ```
-Projekt potřebuje `<PublishAot>true</PublishAot>` a `<NativeLib>Shared</NativeLib>` (viz `CsharpPlugin.csproj`). Sestavení: `dotnet publish -c Release -r linux-x64` (nebo `win-x64`, `osx-arm64`).
+Projekt potřebuje `<PublishAot>true</PublishAot>` a `<NativeLib>Shared</NativeLib>` (viz `CsharpPlugin.csproj`). Sestavení: `dotnet publish -c Release -r linux-x64 -o bin/publish` (nebo `win-x64`, `osx-arm64`); knihovna je pak v `bin/publish/`. Výstupní složku zadávej vždy – bez ní ji „Developer PowerShell for VS“ přesune jinam (nastavuje `Platform=x64`).
 
 ## C
 

@@ -3,8 +3,8 @@
     Example RBS Engine plugin in C#. Compiled ahead-of-time (NativeAOT) into a normal
     native shared library, so players don't need a .NET runtime installed.
 
-    Build:  dotnet publish -c Release -r linux-x64     (win-x64, osx-arm64, ...)
-    Output: bin/Release/net8.0/<rid>/publish/csharp_plugin.so|dll|dylib
+    Build:  dotnet publish -c Release -r linux-x64 -o bin/publish     (win-x64, osx-arm64, ...)
+    Output: bin/publish/csharp_plugin.so|dll|dylib
     Copy it into mods/plugin_demo/plugins/
   -->
   <PropertyGroup>
