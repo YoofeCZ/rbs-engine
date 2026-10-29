@@ -158,6 +158,10 @@ std::string Editor::Impl::ImportFile(const std::string& srcPath, int& count) {
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::path src(srcPath);
+    if (!fs::exists(src, ec)) {
+        LOG_WARN("Import: %s not found", srcPath.c_str());
+        return "";
+    }
     fs::path root = fs::path(vfs::WriteDir());
     auto copy = [&](const fs::path& from, const fs::path& to) {
         fs::create_directories(to.parent_path(), ec);
@@ -257,7 +261,7 @@ void Editor::Impl::ImportPaths(const std::vector<std::string>& paths, bool place
         if (!r.empty()) last = r;
     }
     if (count == 0) {
-        SetStatus("Nothing imported (unsupported file type)");
+        SetStatus("Nothing imported (see the console)");
         return;
     }
     RefreshLists(true);

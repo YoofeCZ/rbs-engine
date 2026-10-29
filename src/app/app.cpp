@@ -347,6 +347,8 @@ void App::Run() {
         } else if (m_state == State::Editor) {
             m_editor->Update(dt, consoleInput);
         }
+        // files dropped on the window are imported by the editor only; elsewhere drop them
+        if (m_state != State::Editor && IsFileDropped()) UnloadDroppedFiles(LoadDroppedFiles());
         // --exec outside of a game (menu, editor) runs once the first frame is up
         if (m_state != State::Game && !m_execDone && m_frame > 1) {
             m_execDone = true;
