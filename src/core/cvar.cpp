@@ -4,6 +4,7 @@
 #include "core/vfs.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <map>

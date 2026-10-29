@@ -18,7 +18,7 @@ jobs:
           - { name: macOS, os: macos-latest }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux packages
         if: runner.os == 'Linux'
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload screenshots
         if: runner.os == 'Linux' && always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: screenshots
           path: build/smoke/
@@ -65,7 +65,7 @@ jobs:
         run: cmake --install build --config Release --component game --prefix dist/rbs-engine
 
       - name: Upload package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rbs-engine-${{ matrix.name }}
           path: dist/
