@@ -344,26 +344,34 @@ void Game::UpdateCamera(float dt) {
     m_listenerPos = eye;
     m_listenerRight = right;
 
-    // a script camera (dialogue shots) takes over, easing towards its target and back to the player
+    // a script camera (dialogue shots) takes over: it eases to its target, and on release it blends
+    // back into the player's live view over a fixed time (the player may already be running)
     ScriptCamera& c = m_scriptCam;
     if (c.active) {
         Vector3 pf = m_camera.position + Norm(m_camera.target - m_camera.position) * 500.0f;
-        Vector3 tp = c.releasing ? m_camera.position : c.tpos, tl = c.releasing ? pf : c.tlook;
-        float tf = c.releasing ? m_camera.fovy : c.tfov;
         if (!c.init) {
             c.pos = m_camera.position;
             c.look = pf;
             c.fov = m_camera.fovy;
             c.init = true;
         }
-        float k = c.rate <= 0 ? 1.0f : 1.0f - expf(-c.rate * dt);
-        c.pos = c.pos + (tp - c.pos) * k;
-        c.look = c.look + (tl - c.look) * k;
-        c.fov = c.fov + (tf - c.fov) * k;
-        Vector3 d = c.pos - tp;
-        if (c.releasing && d.x * d.x + d.y * d.y + d.z * d.z < 0.25f && fabsf(c.fov - tf) < 0.2f) {
-            c.active = false;  // back at the player's eyes
+        if (c.releasing) {
+            c.relT += dt;
+            float b = c.relDur > 0 ? std::min(1.0f, c.relT / c.relDur) : 1.0f;
+            float k = b * b * (3.0f - 2.0f * b);
+            if (b >= 1.0f) {
+                c.active = false;  // back at the player's eyes
+            } else {
+                m_camera.position = c.relPos + (m_camera.position - c.relPos) * k;
+                m_camera.target = c.relLook + (pf - c.relLook) * k;
+                m_camera.up = {0, 1, 0};
+                m_camera.fovy = c.relFov + (m_camera.fovy - c.relFov) * k;
+            }
         } else {
+            float k = c.rate <= 0 ? 1.0f : 1.0f - expf(-c.rate * dt);
+            c.pos = c.pos + (c.tpos - c.pos) * k;
+            c.look = c.look + (c.tlook - c.look) * k;
+            c.fov = c.fov + (c.tfov - c.fov) * k;
             m_camera.position = c.pos;
             m_camera.target = c.look;
             m_camera.up = {0, 1, 0};
@@ -384,9 +392,18 @@ void Game::SetScriptCamera(Vector3 pos, Vector3 look, float fov, float rate) {
 }
 
 void Game::ClearScriptCamera(float rate) {
-    if (!m_scriptCam.active) return;
-    m_scriptCam.releasing = true;
-    m_scriptCam.rate = rate;
+    ScriptCamera& c = m_scriptCam;
+    if (!c.active || c.releasing) return;
+    if (!c.init) {
+        c.active = false;  // never took over: nothing to blend from
+        return;
+    }
+    c.releasing = true;
+    c.relPos = c.pos;
+    c.relLook = c.look;
+    c.relFov = c.fov;
+    c.relT = 0;
+    c.relDur = rate > 0 ? 2.4f / rate : 0.0f;
 }
 
 }  // namespace rbs

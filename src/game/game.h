@@ -165,6 +165,9 @@ private:
         bool active = false, releasing = false, init = false;
         Vector3 pos{}, look{}, tpos{}, tlook{};
         float fov = 60, tfov = 60, rate = 6;
+        // while releasing: where it started, and how far along the blend back to the player is
+        Vector3 relPos{}, relLook{};
+        float relFov = 60, relT = 0, relDur = 0.6f;
     } m_scriptCam;
     bool m_uiFreeze = false;
     std::string m_message;

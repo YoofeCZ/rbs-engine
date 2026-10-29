@@ -83,7 +83,7 @@ void Game::DrawEntities(const Camera3D& cam) {
 }
 
 void Game::DrawViewWeapon(float aspect) {
-    if (m_scriptCam.active) return;  // a dialogue shot: no weapon in the corner
+    if (m_scriptCam.active && !m_scriptCam.releasing) return;  // a dialogue shot: no weapon in the corner
     if (!r_drawviewmodel->i || !m_player || m_player->dead || m_ps.weapon < 0 || m_ps.weapon >= (int)m_script.weapons.size()) return;
     const WeaponDef& w = m_script.weapons[m_ps.weapon];
     if (w.model.empty()) return;
@@ -197,8 +197,9 @@ std::string Game::DebugText() const {
         wname = m_script.weapons[m_ps.weapon].name;
         slot = m_script.weapons[m_ps.weapon].slot;
     }
-    return StrFormat("%s\n%d u/s\n%d, %d, %d\n%d fps\n%d / %s", m_ps.noclip ? "noclip" : (m_player->onGround ? "grounded" : "airborne"), (int)hs,
-                     (int)m_player->pos.x, (int)m_player->pos.y, (int)m_player->pos.z, GetFPS(), slot, wname.c_str());
+    std::string cam = m_scriptCam.active ? (m_scriptCam.releasing ? "\nscript camera: releasing" : "\nscript camera: on") : "";
+    return StrFormat("%s\n%d u/s\n%d, %d, %d\n%d fps\n%d / %s%s", m_ps.noclip ? "noclip" : (m_player->onGround ? "grounded" : "airborne"), (int)hs,
+                     (int)m_player->pos.x, (int)m_player->pos.y, (int)m_player->pos.z, GetFPS(), slot, wname.c_str(), cam.c_str());
 }
 
 void Game::DrawFallbackHud(int w, int h) {
