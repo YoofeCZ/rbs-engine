@@ -245,8 +245,9 @@ void Effects::DrawDecals() {
         Color c = d.color;
         if (d.life >= 0) c.a = (unsigned char)(c.a * d.fade);
         rlCheckRenderBatchLimit((int)d.pts.size() * 3);
-        rlSetTexture(t.id);
+        rlSetTexture(t.id);  // see Renderer::Quad for why the texture is set twice
         rlBegin(RL_TRIANGLES);
+        rlSetTexture(t.id);
         rlColor4ub(c.r, c.g, c.b, c.a);
         for (size_t i = 1; i + 1 < d.pts.size(); ++i) {
             for (size_t k : {(size_t)0, i, i + 1}) {

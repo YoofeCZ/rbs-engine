@@ -35,7 +35,14 @@ static std::map<std::string, Command>& Commands() {
 Cvar* Register(const char* name, const char* def, bool archive, const char* help) {
     auto& vars = Vars();
     auto it = vars.find(name);
-    if (it != vars.end()) return it->second.get();
+    if (it != vars.end()) {
+        // created earlier by config.cfg: keep the stored value, fill in the metadata
+        Cvar* cv = it->second.get();
+        cv->defaultValue = def;
+        cv->help = help ? help : "";
+        cv->archive = cv->archive || archive;
+        return cv;
+    }
     auto cv = std::make_unique<Cvar>();
     cv->name = name;
     cv->defaultValue = def;
@@ -121,7 +128,13 @@ void LoadConfig() {
     std::string line;
     while (std::getline(f, line)) {
         if (line.empty() || StartsWith(line, "//")) continue;
-        Execute(line);
+        auto words = SplitWords(line);
+        if (words.size() >= 2 && Commands().find(ToLower(words[0])) == Commands().end()) {
+            Set(words[0], words[1]);  // may run before the variable is registered
+            Find(words[0])->archive = true;
+        } else {
+            Execute(line);
+        }
     }
 }
 

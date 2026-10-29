@@ -255,8 +255,11 @@ void Renderer::Billboard(const Camera3D& cam, Texture2D tex, Vector3 pos, float 
 
 void Renderer::Quad(Texture2D tex, const Vector3 p[4], const Vector2 uv[4], Color c) {
     rlCheckRenderBatchLimit(4);
+    // rlSetTexture may open a new draw call with a stale mode and rlBegin resets the texture
+    // when the mode changes - setting it on both sides keeps raylib's batch consistent
     rlSetTexture(tex.id);
     rlBegin(RL_QUADS);
+    rlSetTexture(tex.id);
     rlColor4ub(c.r, c.g, c.b, c.a);
     for (int i = 0; i < 4; ++i) {
         rlTexCoord2f(uv[i].x, uv[i].y);
