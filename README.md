@@ -152,6 +152,7 @@ docs/           dokumentace
 - [Modování](docs/MODDING.md) – mody, `mod.json`, formáty assetů, modely z Blenderu, textury, zvuky
 - [Ukládání her](docs/SAVES.md) – sloty, F6 / F9, autosave, co se ukládá a co v Lua
 - [Questy a dialogy](docs/QUESTS.md) – příběh jako graf: objektivy, větvení, rozhovory, proměnné mezi mapami
+- [Cutscény](docs/CUTSCENES.md) – filmové scény jako graf: kamera, postavy, prolínačky, titulky, přeskočení
 - [Behavior trees](docs/BEHAVIOR.md) – AI jako graf: uzly, blackboard, vnímání, vlastní uzly
 - [Animátory](docs/ANIMATION.md) – stavové automaty animací: přechody, prolínání, události
 - [Lua skriptování](docs/SCRIPTING.md) – kompletní API: třídy, komponenty, zbraně, AI, HUD, hooky

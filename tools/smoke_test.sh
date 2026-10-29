@@ -10,7 +10,7 @@ OUT="${2:-$ROOT/build/smoke}"
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 status=0
-BAD='Lua error|^Lua:|Lua prelude failed|init.lua not found|Script initialisation failed|Map not found|Cannot load map|Shader (files missing|failed)|^Plugin |Missing (texture|image|model|sound|loop sound|animator|behavior|quest|dialogue)|Invalid (animator|behavior|quest|dialogue)|BT SELFTEST FAIL|FLOW SELFTEST FAIL|unknown node type|Unknown (entity class|component|weapon)|disabled after error|unknown property|invalid editor_json'
+BAD='Lua error|^Lua:|Lua prelude failed|init.lua not found|Script initialisation failed|Map not found|Cannot load map|Shader (files missing|failed)|^Plugin |Missing (texture|image|model|sound|loop sound|animator|behavior|quest|dialogue|cutscene)|Invalid (animator|behavior|quest|dialogue|cutscene)|BT SELFTEST FAIL|FLOW SELFTEST FAIL|unknown node type|Unknown (entity class|component|weapon)|disabled after error|unknown property|invalid editor_json'
 
 # run <name> <WxH> [args...]; RUN_BIN / RUN_DIR pick another executable / working folder
 run() {
@@ -97,6 +97,27 @@ done
 rm -f "$ROOT/saves/quest_demo/smoke_save.json"
 # a dialogue that is still typing (voice blips overlap, the sound alias pool fills) when the game exits
 run quest_voice 1280x720 --mod quest_demo --map quest_arena --frames 150 --exec "god; quest say guard"
+# cutscenes: the intro plays to its natural end (camera, HUD, fade and the player's weapon come back), a second
+# run skips it half way, and the editor opens it and looks through one of its cameras
+run cutscene_end 1280x720 --mod quest_demo --map quest_arena --frames 1500 --exec "god; quest cutscene intro; quest after 9 dump"
+for want in "CAMERA off cinematic false" "CUTSCENE none fade 0"; do
+    if ! grep -q "$want" "$OUT/cutscene_end.log"; then
+        echo "   FAILED: the intro cutscene did not end cleanly ($want missing)"
+        status=1
+    fi
+done
+run cutscene_skip 1280x720 --mod quest_demo --map quest_arena --frames 400 --exec "god; quest cutscene intro; quest after 1 skip; quest after 2 dump"
+for want in "CAMERA off cinematic false" "CUTSCENE none fade 0"; do
+    if ! grep -q "$want" "$OUT/cutscene_skip.log"; then
+        echo "   FAILED: skipping the intro cutscene did not leave the game clean ($want missing)"
+        status=1
+    fi
+done
+run cutscene_editor 1600x900 --mod quest_demo --editor quest_arena --frames 30 --exec "flow open cutscene intro; flow select n9; flow look n7"
+if ! grep -q "opened cutscenes/intro.json" "$OUT/cutscene_editor.log" || ! grep -q "3D view moved to the camera" "$OUT/cutscene_editor.log"; then
+    echo "   FAILED: the cutscene editor did not open cutscenes/intro.json / look through its camera"
+    status=1
+fi
 # the animator editor: opens the grunt animator in a tab and selects a state
 run animator_editor 1600x900 --editor e1m1 --exec "animator open grunt; animator select_state walk" --frames 30
 if ! grep -q "opened animators/grunt.json" "$OUT/animator_editor.log"; then

@@ -170,6 +170,8 @@ void Editor::Impl::RefreshClasses() {
     if (!btLibrary.is_object()) btLibrary = json::object();
     flowLibrary = script.LuaJson("flow_library");
     if (!flowLibrary.is_object()) flowLibrary = json::object();
+    cutsceneDefaults = script.LuaJson("cutscene_defaults");
+    if (!cutsceneDefaults.is_object()) cutsceneDefaults = json::object();
     dialogueDefaults = script.LuaJson("dialogue_defaults");
     if (!dialogueDefaults.is_object()) dialogueDefaults = json::object();
     weaponFields = script.LuaJson("weapon_fields");

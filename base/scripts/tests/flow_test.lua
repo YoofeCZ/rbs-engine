@@ -259,6 +259,67 @@ return function()
   check("loading puts the fields back (vectors too)", target.state == "open" and target.count == 3 and target.offset.x == 1 and target.offset.z == 3 and target.nested.b.c == "x")
   check("loading leaves the engine's bookkeeping alone and calls loaded()", target.__class == "keep" and called)
 
+  -- ---- cutscenes ----
+  local cam_sets, cam_clears = 0, 0
+  local real_cam = {rbs.camera_set, rbs.camera_clear, rbs.camera_get}
+  rbs.camera_set = function() cam_sets = cam_sets + 1 end
+  rbs.camera_clear = function() cam_clears = cam_clears + 1 end
+  rbs.camera_get = function() return vec(0, 0, 0), vec(1, 0, 0), 60 end
+  local function cutscene(name, nodes, style)
+    local g, err = flow.build({title = "T", nodes = nodes, style = style}, "cutscene", name)
+    assert(g, err)
+    return g
+  end
+  local pl = rbs.player()
+  local hurt_before = pl and pl.takedamage
+  flow.cutscene = nil
+  local fade_before = flow.cut.fade
+  assert(flow.run_cutscene(cutscene("c1", {
+    N("a", "start", nil, {next = {"f"}}),
+    N("f", "cs_fade", {to = "black", seconds = 0}, {next = {"cam"}}),
+    N("cam", "cs_camera", {who = "100 0 0", shot = "medium", motion = "none", seconds = 0.5, blend = 0}, {next = {"t"}}),
+    N("t", "cs_text", {text = "Hello", seconds = 1}, {next = {"e"}}),
+    N("e", "end"),
+  }), "c1"))
+  check("a cutscene runs and takes the game over", flow.cutscene and not flow.cutscene.done and flow.cut.fade == 1 and flow.cinematic)
+  check("the camera node films", cam_sets >= 1)
+  check("only one cutscene at a time", flow.run_cutscene(cutscene("c2", {N("a", "start")}), "c2") == false)
+  if pl then check("the player is invulnerable while it plays", pl.takedamage == false) end
+  rbs._update(0.6)  -- the camera shot is over, the title starts
+  rbs._update(0.6)
+  check("a timed node keeps it running", flow.cutscene and not flow.cutscene.done)
+  rbs._update(0.45)
+  check("it ends when its last node ends", flow.cutscene == nil)
+  check("the camera and the player are given back", cam_clears >= 1 and not flow.cinematic and (not pl or pl.takedamage == hurt_before))
+  check("a fade to black left behind starts to fade out by itself", flow.cut.fade > 0 and flow.cut.fade < 1)
+  for _ = 1, 4 do rbs._update(0.5) end
+  check("... within a second or two", flow.cut.fade == 0)
+
+  -- parallel branches, a Join, and a skip that puts everything at its end state
+  assert(flow.run_cutscene(cutscene("c3", {
+    N("a", "start", nil, {next = {"x", "y"}}),
+    N("x", "cs_text", {text = "A", seconds = 100}, {next = {"j"}}),
+    N("y", "cs_fade", {to = "black", seconds = 100}, {next = {"j"}}),
+    N("j", "join", nil, {next = {"z"}}),
+    N("z", "cs_fade", {to = "clear", seconds = 5}, {next = {"e"}}),
+    N("e", "end"),
+  }), "c3"))
+  rbs._update(0.1)
+  check("parallel branches both run", flow.cutscene and flow.cutscene.active.x and flow.cutscene.active.y)
+  flow.cut.skip(flow.cutscene)
+  check("skipping finishes a long cutscene at once", flow.cutscene == nil)
+  check("... with the fade at its end state", flow.cut.fade == 0)
+
+  -- the Cutscene node of a quest waits for the cutscene to end
+  local waited = quest("t_cut", {N("a", "start", nil, {next = {"c"}}), N("c", "cutscene", {cutscene = ""}, {next = {"d"}}), N("d", "set_var", {key = "cut_after", value = "true"})})
+  check("a Cutscene node without a cutscene just goes on", flow.vars.cut_after == true)
+  local real_log2 = rbs.log
+  rbs.log = function() end
+  quest("t_cut2", {N("a", "start", nil, {next = {"c"}}), N("c", "cutscene", {cutscene = "no_such_cutscene"}, {next = {"d"}}), N("d", "set_var", {key = "cut_after2", value = "true"})})
+  rbs.log = real_log2
+  check("a missing cutscene file does not hang the quest", flow.vars.cut_after2 == true and flow.cutscene == nil)
+  rbs.camera_set, rbs.camera_clear, rbs.camera_get = real_cam[1], real_cam[2], real_cam[3]
+
   -- ---- unknown node types and custom nodes ----
   local before = #flow.order
   local ran = false

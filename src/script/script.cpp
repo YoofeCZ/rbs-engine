@@ -1255,6 +1255,30 @@ static int L_load_game(lua_State* L) {
     return 0;
 }
 
+// rbs.camera_get() -> position, look-at point (far ahead), vertical fov of the view being drawn
+static int L_camera_get(lua_State* L) {
+    Camera3D& c = RequireGame(L)->Camera();
+    Vector3 look = c.position + Norm(c.target - c.position) * 500.0f;
+    lua_newtable(L);
+    lua_pushnumber(L, c.position.x), lua_setfield(L, -2, "x");
+    lua_pushnumber(L, c.position.y), lua_setfield(L, -2, "y");
+    lua_pushnumber(L, c.position.z), lua_setfield(L, -2, "z");
+    lua_getglobal(L, "vec");
+    lua_getfield(L, -1, "meta");
+    lua_remove(L, -2);
+    lua_setmetatable(L, -2);
+    lua_newtable(L);
+    lua_pushnumber(L, look.x), lua_setfield(L, -2, "x");
+    lua_pushnumber(L, look.y), lua_setfield(L, -2, "y");
+    lua_pushnumber(L, look.z), lua_setfield(L, -2, "z");
+    lua_getglobal(L, "vec");
+    lua_getfield(L, -1, "meta");
+    lua_remove(L, -2);
+    lua_setmetatable(L, -2);
+    lua_pushnumber(L, c.fovy);
+    return 3;
+}
+
 static int L_camera_clear(lua_State* L) {
     RequireGame(L)->ClearScriptCamera((float)luaL_optnumber(L, 1, 4));
     return 0;
@@ -1553,7 +1577,7 @@ static const luaL_Reg kApi[] = {
     {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {"list_files", L_list_files},
     {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {"anim_param", L_anim_param},
     {"anim_trigger", L_anim_trigger}, {"anim_state", L_anim_state}, {"persist_set", L_persist_set},
-    {"persist_get", L_persist_get}, {"camera_set", L_camera_set}, {"camera_clear", L_camera_clear}, {"save_game", L_save_game}, {"load_game", L_load_game}, {"camera_active", L_camera_active}, {"freeze", L_freeze}, {"key_pressed", L_key_pressed}, {"mouse", L_mouse}, {nullptr, nullptr}};
+    {"persist_get", L_persist_get}, {"camera_set", L_camera_set}, {"camera_clear", L_camera_clear}, {"camera_get", L_camera_get}, {"save_game", L_save_game}, {"load_game", L_load_game}, {"camera_active", L_camera_active}, {"freeze", L_freeze}, {"key_pressed", L_key_pressed}, {"mouse", L_mouse}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class

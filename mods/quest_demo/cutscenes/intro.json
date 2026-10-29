@@ -1,0 +1,134 @@
+{
+  "title": "Intro",
+  "vars": [],
+  "style": {},
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "start",
+      "out": {
+        "next": [
+          "n2"
+        ]
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cs_fade",
+      "params": {
+        "to": "black",
+        "seconds": 0
+      },
+      "out": {
+        "next": [
+          "n3"
+        ]
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cs_camera",
+      "params": {
+        "who": "guard",
+        "shot": "wide",
+        "motion": "none",
+        "seconds": 0,
+        "blend": 0
+      },
+      "out": {
+        "next": [
+          "n4",
+          "n7"
+        ]
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cs_fade",
+      "params": {
+        "to": "clear",
+        "seconds": 1.0
+      },
+      "out": {
+        "next": [
+          "n5"
+        ]
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cs_text",
+      "params": {
+        "text": "The Arena",
+        "seconds": 2.5,
+        "position": "center",
+        "size": 56
+      },
+      "out": {
+        "next": [
+          "n6"
+        ]
+      }
+    },
+    {
+      "id": "n7",
+      "type": "cs_camera",
+      "params": {
+        "who": "guard",
+        "shot": "close-up",
+        "motion": "push-in",
+        "seconds": 3.5,
+        "blend": 1.5
+      },
+      "out": {
+        "next": [
+          "n8"
+        ]
+      }
+    },
+    {
+      "id": "n8",
+      "type": "cs_animate",
+      "params": {
+        "who": "guard",
+        "animation": "attack"
+      },
+      "out": {
+        "next": [
+          "n9"
+        ]
+      }
+    },
+    {
+      "id": "n9",
+      "type": "cs_camera_move",
+      "params": {
+        "to": "0 150 -100",
+        "look_at": "guard",
+        "seconds": 2.5
+      },
+      "out": {
+        "next": [
+          "n6"
+        ]
+      }
+    },
+    {
+      "id": "n6",
+      "type": "join",
+      "out": {
+        "next": [
+          "n10"
+        ]
+      }
+    },
+    {
+      "id": "n10",
+      "type": "end",
+      "params": {
+        "result": "success"
+      },
+      "out": {}
+    }
+  ]
+}

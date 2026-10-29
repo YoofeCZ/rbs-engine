@@ -45,6 +45,7 @@ static Color CategoryColor(const std::string& cat, const std::string& type) {
     if (cat == "objective") return {172, 118, 40, 255};
     if (cat == "action") return {52, 108, 160, 255};
     if (cat == "dialogue") return {58, 138, 108, 255};
+    if (cat == "cutscene") return {138, 96, 168, 255};
     return {150, 50, 50, 255};
 }
 
@@ -60,7 +61,7 @@ static bool InScope(const json& meta, const std::string& kind) {
     return false;
 }
 
-static const char* kCategories[] = {"flow", "objective", "action", "dialogue"};
+static const char* kCategories[] = {"flow", "objective", "action", "dialogue", "cutscene"};
 
 // ---------------------------------------------------------------------------------
 // the graph in JSON
@@ -320,6 +321,7 @@ static std::vector<std::string> Issues(Editor::Impl& ed, Document& d) {
 void Editor::Impl::RefreshFlowLists() {
     questList = vfs::List("quests", ".json", true);
     dialogueList = vfs::List("dialogues", ".json", true);
+    cutsceneList = vfs::List("cutscenes", ".json", true);
 }
 
 void Editor::Impl::InitFlowDocument(Document& d) {
@@ -339,7 +341,7 @@ bool Editor::Impl::CreateFlow(const std::string& kind, const std::string& name) 
         SetStatus("Use lowercase letters, digits and _ for the name");
         return false;
     }
-    std::string path = (kind == "quest" ? "quests/" : "dialogues/") + name + ".json";
+    std::string path = (kind == "quest" ? "quests/" : kind == "cutscene" ? "cutscenes/" : "dialogues/") + name + ".json";
     if (vfs::Exists(path)) {
         SetStatus("'" + path + "' already exists");
         return false;
@@ -352,6 +354,15 @@ bool Editor::Impl::CreateFlow(const std::string& kind, const std::string& name) 
                 json::array({{{"id", "n1"}, {"type", "start"}, {"out", {{"next", json::array({"n2"})}}}},
                              {{"id", "n2"}, {"type", "kill"}, {"params", {{"class", "monster_grunt"}, {"count", 3}, {"text", "Kill the grunts"}}}, {"out", {{"next", json::array({"n3"})}}}},
                              {{"id", "n3"}, {"type", "end"}, {"params", {{"result", "success"}}}, {"out", json::object()}}})}};
+    } else if (kind == "cutscene") {
+        def = {{"title", name},
+               {"vars", json::array()},
+               {"nodes",
+                json::array({{{"id", "n1"}, {"type", "start"}, {"out", {{"next", json::array({"n2"})}}}},
+                             {{"id", "n2"}, {"type", "cs_fade"}, {"params", {{"to", "black"}, {"seconds", 0}}}, {"out", {{"next", json::array({"n3"})}}}},
+                             {{"id", "n3"}, {"type", "cs_camera"}, {"params", {{"who", "player"}, {"shot", "medium"}, {"motion", "push-in"}, {"seconds", 3}, {"blend", 0}}}, {"out", {{"next", json::array({"n4"})}}}},
+                             {{"id", "n4"}, {"type", "cs_fade"}, {"params", {{"to", "clear"}, {"seconds", 1}}}, {"out", {{"next", json::array({"n5"})}}}},
+                             {{"id", "n5"}, {"type", "end"}, {"out", json::object()}}})}};
     } else {
         def = {{"title", name},
                {"vars", json::array()},
@@ -374,6 +385,12 @@ bool Editor::Impl::CreateFlow(const std::string& kind, const std::string& name) 
 std::vector<std::string> Editor::Impl::QuestOptions() const {
     std::vector<std::string> out{kNone};
     for (auto& s : questList) out.push_back(s);
+    return out;
+}
+
+std::vector<std::string> Editor::Impl::CutsceneOptions() const {
+    std::vector<std::string> out{kNone};
+    for (auto& s : cutsceneList) out.push_back(s);
     return out;
 }
 
@@ -692,12 +709,40 @@ static json MapEntityInfo(Editor::Impl& ed) {
         std::string model = e.Str("model", "");
         if (model.empty())
             if (const ClassInfo* ci = ed.ClassFor(e.classname)) model = ci->model;
-        out[tn] = {{"model", model}, {"scale", e.Num("scale", 1.0f)}};
+        json info = {{"model", model}, {"scale", e.Num("scale", 1.0f)}, {"pos", {e.origin.x, e.origin.y, e.origin.z}}, {"yaw", e.angle}};
+        if (const ClassInfo* ci = ed.ClassFor(e.classname))
+            info["mins"] = {ci->mins.x, ci->mins.y, ci->mins.z}, info["maxs"] = {ci->maxs.x, ci->maxs.y, ci->maxs.z};
+        out[tn] = info;
     }
     return out;
 }
 
+// where the player starts (the "player" of a cutscene shot in the editor)
+static json PlayerInfo(Editor::Impl& ed) {
+    for (auto& e : ed.map.entities)
+        if (e.classname == "player_start") return {{"pos", {e.origin.x, e.origin.y, e.origin.z}}, {"yaw", e.angle}, {"mins", {-16, -24, -16}}, {"maxs", {16, 24, 16}}};
+    return json();
+}
+
 static Vector3 V3(const json& a) { return {a[0].get<float>(), a[1].get<float>(), a[2].get<float>()}; }
+
+void Editor::Impl::LookThroughCamera(Document& d, int nodeIndex) {
+    json res = script.CallJson("flow_cutscene_shot", {{"def", d.def}, {"node", IdOf(d, nodeIndex)}, {"t", 0}, {"entities", MapEntityInfo(*this)}, {"player", PlayerInfo(*this)}});
+    if (!res.is_object() || !res.contains("camera")) {
+        SetStatus(res.is_object() && res.contains("error") ? res["error"].get<std::string>() : "Cannot work out the camera");
+        return;
+    }
+    const json& c = res["camera"];
+    Vector3 pos = V3(c["pos"]), look = V3(c["look"]);
+    Vector3 dir = Vector3Normalize(look - pos);
+    EditorView& v = views[1];
+    v.camPos = pos;
+    v.yaw = atan2f(-dir.z, dir.x) * RAD2DEG;
+    v.pitch = asinf(Clamp(dir.y, -1.0f, 1.0f)) * RAD2DEG;
+    activeDoc = -1;  // back to the map to see it
+    SetStatus("3D view moved to the camera of '" + JStr(Nodes(d)[nodeIndex], "label", JStr(Nodes(d)[nodeIndex], "type")) + "'");
+}
+
 
 // Asks the script code what the line looks like and draws the 3D shot into the document's texture.
 static json RenderDialogueScene(Editor::Impl& ed, Document& d) {
@@ -843,12 +888,23 @@ static float ParamRow(Editor::Impl& ed, Document& d, const Fields& f, float y, j
             for (auto& o : pd["values"]) opts.push_back(o.is_string() ? o.get<std::string>() : o.dump());
         std::string s = text();
         if (Dropdown("e", fr, s, opts)) store(s);
-    } else if (type == "class" || type == "weapon" || type == "map" || type == "sound" || type == "quest" || type == "dialogue") {
-        std::vector<std::string> opts = type == "class" ? ed.classNames : type == "weapon" ? ed.weaponIds : type == "map" ? ed.mapList : type == "sound" ? ed.soundList : type == "quest" ? ed.questList : ed.dialogueList;
+    } else if (type == "class" || type == "weapon" || type == "map" || type == "sound" || type == "quest" || type == "dialogue" || type == "cutscene") {
+        std::vector<std::string> opts = type == "class" ? ed.classNames : type == "weapon" ? ed.weaponIds : type == "map" ? ed.mapList : type == "sound" ? ed.soundList : type == "quest" ? ed.questList : type == "cutscene" ? ed.cutsceneList : ed.dialogueList;
         std::string s = text();
         bool changed = OptionalDropdown("a", fr, s, opts);
-        if (type == "quest" || type == "dialogue") changed = assetDrop(type, s) || changed;
+        if (type == "quest" || type == "dialogue" || type == "cutscene") changed = assetDrop(type, s) || changed;
         if (changed) store(s);
+    } else if (type == "entity") {
+        // "player", a target name of an entity in the open map, or a point "x y z"
+        std::string s = text();
+        if (TextField("en", {fr.x, fr.y, fr.width - 24, fr.height}, s)) store(s);
+        std::string pick = "v";
+        std::vector<std::string> names{"player"};
+        for (auto& e : ed.map.entities) {
+            std::string tn = e.Str("targetname");
+            if (!tn.empty() && std::find(names.begin(), names.end(), tn) == names.end()) names.push_back(tn);
+        }
+        if (Dropdown("enp", {fr.x + fr.width - 22, fr.y, 22, fr.height}, pick, names)) store(pick);
     } else if (type == "speaker") {
         // a speaker id (from this dialogue's Speakers), or any name typed in
         std::string s = text();
@@ -949,7 +1005,12 @@ static float InspectNode(Editor::Impl& ed, Document& d, const Fields& f, float y
         y += kRow + 4;
     }
     y += 6;
-    if (type != "start" || true) {
+    if (type == "cs_camera" || type == "cs_camera_move") {
+        if (Button("nlook", {r.x + 10, y, r.width - 20, kRow}, "Look through this camera")) ed.LookThroughCamera(d, idx);
+        if (Hovered({r.x + 10, y, r.width - 20, kRow})) Tooltip("Puts the 3D view where this shot films from (the end of the move)");
+        y += kRow + 4;
+    }
+    {
         if (Button("ndel", {r.x + 10, y, r.width - 20, kRow}, "Delete node")) DeleteNode(d, idx);
     }
     return y + kRow + 8;
@@ -1219,7 +1280,7 @@ float Editor::Impl::InspectFlow(Rectangle r, float y) {
     if (!dp) return y;
     Document& d = *dp;
     Fields f{r};
-    std::string kindName = d.kind == "quest" ? "Quest" : "Dialogue";
+    std::string kindName = d.kind == "quest" ? "Quest" : d.kind == "cutscene" ? "Cutscene" : "Dialogue";
     Text(kindName + ": " + d.name, r.x + 12, y + 4, theme.text, 15, "ui_bold");
     y += kRow + 4;
     Text(Ellipsize(d.path, r.width - 24, 12), r.x + 12, y, theme.textDim, 12);
@@ -1250,7 +1311,7 @@ float Editor::Impl::InspectFlow(Rectangle r, float y) {
 
     Text(kindName, r.x + 12, y + 2, theme.textDim, 12, "ui_bold");
     y += kRow - 2;
-    f.Label("Title", y, d.kind == "quest" ? "shown in the quest list on the screen" : "name of the dialogue");
+    f.Label("Title", y, d.kind == "quest" ? "shown in the quest list on the screen" : d.kind == "cutscene" ? "name of the cutscene" : "name of the dialogue");
     std::string title = JStr(d.def, "title");
     if (TextField("gtitle", f.Field(y), title)) {
         d.def["title"] = title;
@@ -1274,6 +1335,37 @@ float Editor::Impl::InspectFlow(Rectangle r, float y) {
         y += kRow + 4;
         if (stOpen) y = InspectStyle(*this, d, f, y);
     }
+    if (d.kind == "cutscene") {
+        bool& stOpen = open["cut_style"];
+        if (!open.count("cut_style_init")) {
+            open["cut_style_init"] = true;
+            stOpen = true;
+        }
+        Header("cst", {r.x + 8, y, r.width - 16, kRow}, "How the cutscene plays", stOpen);
+        y += kRow + 4;
+        if (stOpen) {
+            struct Opt { const char* key; const char* label; const char* help; };
+            static const Opt opts[] = {{"letterbox", "Black bars", "cinema bars at the top and bottom"},
+                                       {"skippable", "Skippable", "pressing Space or Enter twice skips it"},
+                                       {"hide_hud", "Hide HUD", "no health, ammo or objectives while it plays"},
+                                       {"invulnerable", "Invulnerable", "the player cannot be hurt during the scene"}};
+            json& style = d.def["style"];
+            if (!style.is_object()) style = json::object();
+            for (auto& o : opts) {
+                bool def = JBool(cutsceneDefaults.value("style", json::object()), o.key, true);
+                bool b = JBool(style, o.key, def);
+                f.Label(o.label, y, o.help);
+                PushId(o.key);
+                if (Checkbox("c", f.Field(y), b, "")) {
+                    style[o.key] = b;
+                    Touch(d);
+                }
+                PopId();
+                y += kRow;
+            }
+            y += 6;
+        }
+    }
     std::vector<std::string> issues = Issues(*this, d);
     if (issues.empty()) {
         Text("No problems found.", r.x + 12, y, Color{120, 220, 140, 255}, 12);
@@ -1281,7 +1373,17 @@ float Editor::Impl::InspectFlow(Rectangle r, float y) {
     }
     for (auto& s : issues) y = WrapText(s, r.x + 12, y, r.width - 24, Color{240, 180, 60, 255}) + 2;
     y += 10;
-    std::vector<std::string> tips = d.kind == "quest" ? std::vector<std::string>{"Right click the canvas to add nodes. Drag from a dot on",
+    std::vector<std::string> tips = d.kind == "cutscene" ? std::vector<std::string>{"Right click the canvas to add nodes. Camera shot films a",
+                                                                                     "character (target name, player or a point x y z), Camera",
+                                                                                     "move flies to a point, Animate / Move character direct",
+                                                                                     "actors, Fade and Title text dress it up.",
+                                                                                     "Nodes on parallel ports run together; a Join waits.",
+                                                                                     "Select a camera node and press 'Look through this camera'",
+                                                                                     "to see its shot in the 3D view.",
+                                                                                     "",
+                                                                                     "Play it: a cutscene_start entity, the Cutscene node of a",
+                                                                                     "quest / dialogue, or console: quest cutscene <name>."}
+                                                    : d.kind == "quest" ? std::vector<std::string>{"Right click the canvas to add nodes. Drag from a dot on",
                                                                                  "the right edge of a node to the node that comes next.",
                                                                                  "A port can lead to several nodes at once (they all run;",
                                                                                  "a Join waits for them). Objectives wait for kills,",
@@ -1313,10 +1415,10 @@ void Editor::OpenFlow(const std::string& kind, const std::string& name) {
 }
 
 std::string Editor::FlowCommand(const std::vector<std::string>& a) {
-    if (a.size() < 2) return "flow open|create|add|link|unlink|set|option|label|select|delete|arrange|save|dump|issues|var|title|entity|close";
+    if (a.size() < 2) return "flow open|create|add|link|unlink|set|option|label|select|look|delete|arrange|save|dump|issues|var|title|entity|close";
     const std::string& cmd = a[1];
     auto arg = [&](size_t i) { return i < a.size() ? a[i] : std::string(); };
-    auto isFlow = [&](Document* d) { return d && (d->kind == "quest" || d->kind == "dialogue"); };
+    auto isFlow = [&](Document* d) { return d && IsFlowKind(d->kind); };
     if (cmd == "open") {
         OpenFlow(arg(2), arg(3));
         return isFlow(m->Doc()) ? "opened " + m->Doc()->path : "not opened";
@@ -1326,7 +1428,7 @@ std::string Editor::FlowCommand(const std::vector<std::string>& a) {
         return "created " + m->Doc()->path;
     }
     Document* d = m->Doc();
-    if (!isFlow(d)) return "no quest or dialogue open (flow open quest|dialogue <name>)";
+    if (!isFlow(d)) return "no quest, dialogue or cutscene open (flow open quest|dialogue|cutscene <name>)";
     {
         std::string r = m->DocCommand(*d, a);
         if (r != "\x01") return r;
@@ -1385,6 +1487,12 @@ std::string Editor::FlowCommand(const std::vector<std::string>& a) {
         d->view.selLink = -1;
         d->selParam = -1;
         d->view.selNode = arg(2) == "none" ? -1 : node(arg(2));
+        return "";
+    }
+    if (cmd == "look") {  // flow look <node>: the 3D view goes where that camera node films from
+        int i = node(arg(2));
+        if (i < 0) return "no such node";
+        m->LookThroughCamera(*d, i);
         return "";
     }
     if (cmd == "label") {

@@ -14,7 +14,7 @@ Jak v editoru udělat celou hru – projekt, nepřátelé, zbraně, nastavení a
 | **Hierarchy** (vlevo) | Nahoře tlačítko **Project** s názvem otevřené hry (dialog projektu), pod ním nastavení mapy, entity podle kategorií (brushe entity jsou pod ní), brushe světa. Vyhledávání, dvojklik = zaměřit kameru, přetažení komponenty na řádek = přidání komponenty |
 | **Pohledy** (uprostřed) | **Top**, **Front**, **Side** (2D, mřížka) a **Perspective** (3D s osvětlením a gizmem). `Tab` zvětší pohled pod myší na celou plochu |
 | **Inspector** (vpravo) | Podle výběru: **entita** (třída, popis, Transform, Properties, **Components** + *Add Component*), **brush** (pozice, velikost, textura, operace), **plocha** (posun, měřítko, rotace textury, *Fit to face*, *Reset*), **typ entity nebo zbraň** kliknutá v Project (úprava bez kódu, viz níže), nic = **nastavení mapy** (obloha, slunce, ambient, mlha, kvalita lightmap, gravitace, hudba, další mapa) |
-| **Project** (dole) | Entities, Weapons, **Animators** (graf animací, viz [ANIMATION.md](ANIMATION.md#editor-animátorů)), **Behaviors** (stromy chování pro AI, viz [BEHAVIOR.md](BEHAVIOR.md)), **Quests** a **Dialogues** (příběh jako graf, viz [QUESTS.md](QUESTS.md)), Components, Textures, Models, Sprites, Sounds, Prefabs, Maps, Scripts – vše přetažitelné do pohledů. Tlačítka *+ New type*, *+ New weapon*, *Reload scripts* a *Reload plugins* |
+| **Project** (dole) | Entities, Weapons, **Animators** (graf animací, viz [ANIMATION.md](ANIMATION.md#editor-animátorů)), **Behaviors** (stromy chování pro AI, viz [BEHAVIOR.md](BEHAVIOR.md)), **Quests**, **Dialogues** a **Cutscenes** (příběh jako graf, viz [QUESTS.md](QUESTS.md) a [CUTSCENES.md](CUTSCENES.md)), Components, Textures, Models, Sprites, Sounds, Prefabs, Maps, Scripts – vše přetažitelné do pohledů. Tlačítka *+ New type*, *+ New weapon*, *Reload scripts* a *Reload plugins* |
 | **Console** (dole, záložka) | log a příkazová řádka (stejná jako ve hře) |
 
 ## Ovládání pohledů
@@ -129,9 +129,9 @@ Vyber skupinu brushů a entit → **Project → Prefabs → Save selection as pr
 
 Lua API: [SCRIPTING.md](SCRIPTING.md), vlastní AI: [AI.md](AI.md), nativní pluginy: [PLUGINS.md](PLUGINS.md).
 
-## Grafy (animátory, behavior trees, questy, dialogy)
+## Grafy (animátory, behavior trees, questy, dialogy, cutscény)
 
-Všechny čtyři grafy se ovládají stejně:
+Všechny grafy se ovládají stejně:
 
 | Co | Jak |
 |---|---|

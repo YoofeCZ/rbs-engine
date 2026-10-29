@@ -243,10 +243,10 @@ end
 
 local function clear_camera(d)
   if d.cam_active then
-    rbs.camera_clear(4)
+    if not flow.cutscene then rbs.camera_clear(4) end  -- inside a cutscene its own camera goes on
     d.cam_active = false
   end
-  flow.cinematic = false
+  if not flow.cutscene then flow.cinematic = false end
 end
 
 function view.on_finish(d)

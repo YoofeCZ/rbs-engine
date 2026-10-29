@@ -240,8 +240,8 @@ static std::string GuessPreviewModel(Editor::Impl& ed, const std::string& path) 
 }
 
 void Editor::Impl::OpenDocument(const std::string& kind, const std::string& name) {
-    if (kind != "animator" && kind != "behavior" && kind != "quest" && kind != "dialogue") return;
-    std::string dir = kind == "animator" ? "animators/" : kind == "behavior" ? "behaviors/" : kind == "quest" ? "quests/" : "dialogues/";
+    if (kind != "animator" && kind != "behavior" && !IsFlowKind(kind)) return;
+    std::string dir = kind == "animator" ? "animators/" : kind == "behavior" ? "behaviors/" : kind == "quest" ? "quests/" : kind == "cutscene" ? "cutscenes/" : "dialogues/";
     std::string path = name.find('/') != std::string::npos ? name : dir + name;
     if (fs::path(path).extension() != ".json") path += ".json";
     for (size_t i = 0; i < docs.size(); ++i) {
@@ -267,7 +267,7 @@ void Editor::Impl::OpenDocument(const std::string& kind, const std::string& name
     d->def = j;
     if (kind == "behavior") {
         InitBehaviorDocument(*d);
-    } else if (kind == "quest" || kind == "dialogue") {
+    } else if (IsFlowKind(kind)) {
         InitFlowDocument(*d);
     } else {
         Arr(d->def, "states");
@@ -338,7 +338,7 @@ void Editor::Impl::ReloadDocument(Document& d) {
     d.def = j;
     if (d.kind == "behavior") {
         InitBehaviorDocument(d);
-    } else if (d.kind == "quest" || d.kind == "dialogue") {
+    } else if (IsFlowKind(d.kind)) {
         InitFlowDocument(d);
     } else {
         Arr(d.def, "states");
@@ -413,7 +413,7 @@ void Editor::Impl::DrawTabs(Rectangle r) {
     for (size_t i = 0; i < docs.size(); ++i) {
         PushId("doc" + std::to_string(i));
         const std::string& k = docs[i]->kind;
-        std::string label = std::string(k == "behavior" ? "Behavior: " : k == "quest" ? "Quest: " : k == "dialogue" ? "Dialogue: " : "Animator: ") + docs[i]->name + (docs[i]->dirty ? " *" : "");
+        std::string label = std::string(k == "behavior" ? "Behavior: " : k == "quest" ? "Quest: " : k == "dialogue" ? "Dialogue: " : k == "cutscene" ? "Cutscene: " : "Animator: ") + docs[i]->name + (docs[i]->dirty ? " *" : "");
         if (tab("t", label, activeDoc == (int)i, true, nx, closed)) activeDoc = (int)i;
         if (closed) closeIdx = (int)i;
         PopId();
@@ -553,7 +553,7 @@ void Editor::Impl::DrawDocument(Rectangle r) {
         DrawBehaviorDoc(r);
         return;
     }
-    if (dp->kind == "quest" || dp->kind == "dialogue") {
+    if (IsFlowKind(dp->kind)) {
         DrawFlowDoc(r);
         return;
     }
@@ -1111,7 +1111,7 @@ float Editor::Impl::InspectDocument(Rectangle r, float y) {
     Document* dp = Doc();
     if (!dp) return y;
     if (dp->kind == "behavior") return InspectBehavior(r, y);
-    if (dp->kind == "quest" || dp->kind == "dialogue") return InspectFlow(r, y);
+    if (IsFlowKind(dp->kind)) return InspectFlow(r, y);
     Document& d = *dp;
     Fields f{r};
     Text("Animator: " + d.name, r.x + 12, y + 4, theme.text, 15, "ui_bold");

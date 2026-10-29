@@ -274,7 +274,7 @@ void Editor::Impl::DropAsset(int vi, Vector2 mouse, const std::string& type, con
         InsertPrefab(payload, PlacementPoint(vi, mouse, nullptr));
         return;
     }
-    if (type == "animator" || type == "behavior" || type == "quest" || type == "dialogue") {
+    if (type == "animator" || type == "behavior" || type == "quest" || type == "dialogue" || type == "cutscene") {
         int target = -1;
         if (v.kind == ViewKind::Persp) {
             Ray ray = GetScreenToWorldRayEx({mouse.x - v.rect.x, mouse.y - v.rect.y}, v.Camera(), (int)v.rect.width, (int)v.rect.height);

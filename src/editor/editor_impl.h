@@ -160,9 +160,10 @@ struct Editor::Impl {
     // ---- graph documents in tabs (editor_animator.cpp) ----
     std::vector<std::unique_ptr<Document>> docs;
     int activeDoc = -1;  // -1 = the level (scene views)
-    std::vector<std::string> animatorList, behaviorList, questList, dialogueList;
+    std::vector<std::string> animatorList, behaviorList, questList, dialogueList, cutsceneList;
     json btLibrary;  // rbs.bt_library from scripts/behavior.lua: node types and blackboard keys
     json flowLibrary;  // rbs.flow_library from scripts/quests.lua: node types of quests and dialogues
+    json cutsceneDefaults;  // rbs.cutscene_defaults from scripts/cutscene.lua: style defaults
     json dialogueDefaults;  // rbs.dialogue_defaults from scripts/dialogue.lua: style defaults, shots, motions
     std::string newAnimName;
     Document* Doc() { return activeDoc >= 0 && activeDoc < (int)docs.size() ? docs[activeDoc].get() : nullptr; }
@@ -202,6 +203,8 @@ struct Editor::Impl {
     void RefreshFlowLists();
     std::vector<std::string> QuestOptions() const;
     std::vector<std::string> DialogueOptions() const;
+    std::vector<std::string> CutsceneOptions() const;
+    void LookThroughCamera(Document& d, int nodeIndex);  // puts the 3D view where a cutscene camera node would film from
     bool CreateFlow(const std::string& kind, const std::string& name);  // kind: quest | dialogue
     void InitFlowDocument(Document& d);
     void DrawFlowDoc(Rectangle r);

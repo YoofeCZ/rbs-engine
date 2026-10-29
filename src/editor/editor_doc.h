@@ -15,6 +15,9 @@ namespace edoc {
 constexpr float kRow = 22;
 constexpr const char* kNone = "(none)";
 
+// the graph kinds that share the flow editor (editor_flow.cpp)
+inline bool IsFlowKind(const std::string& k) { return k == "quest" || k == "dialogue" || k == "cutscene"; }
+
 // an edit was made: the document is unsaved, and UpdateUndo will store the state once the edit is finished
 inline void Touch(Document& d) {
     d.dirty = true;

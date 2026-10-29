@@ -279,11 +279,11 @@ float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json
         bool changed = false;
         json nv = value;
         const json* options = enums && enums->contains(k) && (*enums)[k].is_array() ? &(*enums)[k] : nullptr;
-        if (k == "animator" || k == "behavior" || k == "quest" || k == "dialogue") {
+        if (k == "animator" || k == "behavior" || k == "quest" || k == "dialogue" || k == "cutscene") {
             // asset files of the project: a dropdown (drop one from the Project panel too)
             bool anim = k == "animator";
             std::string cur = value.is_string() ? value.get<std::string>() : "";
-            std::vector<std::string> opts = anim ? AnimatorOptions() : k == "behavior" ? BehaviorOptions() : k == "quest" ? QuestOptions() : DialogueOptions();
+            std::vector<std::string> opts = anim ? AnimatorOptions() : k == "behavior" ? BehaviorOptions() : k == "quest" ? QuestOptions() : k == "cutscene" ? CutsceneOptions() : DialogueOptions();
             if (!cur.empty() && std::find(opts.begin(), opts.end(), cur) == opts.end()) opts.push_back(cur);
             std::string shown = cur.empty() ? "(none)" : cur;
             bool pick = Dropdown("asset", fr, shown, opts);
@@ -827,7 +827,7 @@ void Editor::Impl::DrawBottom(Rectangle r) {
 }
 
 void Editor::Impl::DrawProject(Rectangle r) {
-    const char* folders[] = {"Entities", "Weapons", "Animators", "Behaviors", "Quests", "Dialogues", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
+    const char* folders[] = {"Entities", "Weapons", "Animators", "Behaviors", "Quests", "Dialogues", "Cutscenes", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
     const int folderCount = (int)(sizeof(folders) / sizeof(folders[0]));
     float fw = 120;
     Fill({r.x, r.y, fw, r.height}, theme.panelAlt);
@@ -866,14 +866,16 @@ void Editor::Impl::DrawProject(Rectangle r) {
         if (Hovered({bx, top.y, 140, 22})) Tooltip("Make an animation state machine for a model (idle, walk, attack...) and edit it as a graph");
         bx += 146;
     }
-    if (projectFolder == "Quests" || projectFolder == "Dialogues") {
-        bool quests = projectFolder == "Quests";
-        if (Button("newflow", {bx, top.y, 140, 22}, quests ? "+ New quest" : "+ New dialogue")) {
-            dialog = quests ? "newquest" : "newdialogue";
-            dialogText = quests ? "new_quest" : "new_dialogue";
+    if (projectFolder == "Quests" || projectFolder == "Dialogues" || projectFolder == "Cutscenes") {
+        bool quests = projectFolder == "Quests", scenes = projectFolder == "Cutscenes";
+        if (Button("newflow", {bx, top.y, 140, 22}, quests ? "+ New quest" : scenes ? "+ New cutscene" : "+ New dialogue")) {
+            dialog = quests ? "newquest" : scenes ? "newcutscene" : "newdialogue";
+            dialogText = quests ? "new_quest" : scenes ? "new_cutscene" : "new_dialogue";
         }
         if (Hovered({bx, top.y, 140, 22}))
-            Tooltip(quests ? "Make a quest (objectives, branches, rewards) and edit it as a graph" : "Make a conversation (lines, answers, actions) and edit it as a graph");
+            Tooltip(quests ? "Make a quest (objectives, branches, rewards) and edit it as a graph"
+                    : scenes ? "Make a cutscene (camera shots, characters, fades, titles) and edit it as a graph"
+                             : "Make a conversation (lines, answers, actions) and edit it as a graph");
         bx += 146;
     }
     if (projectFolder == "Behaviors") {
@@ -902,6 +904,7 @@ void Editor::Impl::DrawProject(Rectangle r) {
     else if (projectFolder == "Animators") hint = "double click = open the graph editor, drag onto an entity to use it";
     else if (projectFolder == "Quests") hint = "double click = open the graph editor, drag onto a quest_start entity";
     else if (projectFolder == "Dialogues") hint = "double click = open the graph editor, drag onto an npc";
+    else if (projectFolder == "Cutscenes") hint = "double click = open the graph editor, drag onto a cutscene_start entity";
     else if (projectFolder == "Behaviors") hint = "double click = open the graph editor, drag onto a monster to use it";
     else if (projectFolder == "Components") hint = "drag onto an entity (3D view or hierarchy), or use Add Component";
     else if (projectFolder == "Models" || projectFolder == "Sprites" || projectFolder == "Sounds") hint = "drag into a view to place";
@@ -921,6 +924,7 @@ void Editor::Impl::DrawProject(Rectangle r) {
     else if (projectFolder == "Behaviors") items = behaviorList;
     else if (projectFolder == "Quests") items = questList;
     else if (projectFolder == "Dialogues") items = dialogueList;
+    else if (projectFolder == "Cutscenes") items = cutsceneList;
     else if (projectFolder == "Textures") items = textureList;
     else if (projectFolder == "Models") items = modelList;
     else if (projectFolder == "Sprites") items = spriteList;
@@ -1006,6 +1010,8 @@ void Editor::Impl::DrawProject(Rectangle r) {
                 StartDrag("quest", it, name);
             } else if (projectFolder == "Dialogues") {
                 StartDrag("dialogue", it, name);
+            } else if (projectFolder == "Cutscenes") {
+                StartDrag("cutscene", it, name);
             } else if (projectFolder == "Components") {
                 StartDrag("component", it, it);
             } else if (projectFolder == "Models") {
@@ -1032,6 +1038,8 @@ void Editor::Impl::DrawProject(Rectangle r) {
                 OpenDocument("quest", it);
             } else if (projectFolder == "Dialogues") {
                 OpenDocument("dialogue", it);
+            } else if (projectFolder == "Cutscenes") {
+                OpenDocument("cutscene", it);
             } else if (projectFolder == "Maps") {
                 if (dirty) {
                     dialog = "confirm_open";
@@ -1137,6 +1145,7 @@ void Editor::Impl::DrawDialogs(int w, int h) {
                         : dialog == "newbehavior" ? "New behavior (behaviors/<name>.json)"
                         : dialog == "newquest"    ? "New quest (quests/<name>.json)"
                         : dialog == "newdialogue" ? "New dialogue (dialogues/<name>.json)"
+                        : dialog == "newcutscene" ? "New cutscene (cutscenes/<name>.json)"
                                                 : "Tie brushes to entity class";
     Text(title, d.x + 14, d.y + 12, theme.text, 15, "ui_bold");
     if (dialog == "tie") {
@@ -1159,6 +1168,7 @@ void Editor::Impl::DrawDialogs(int w, int h) {
         if (kind == "newbehavior" && !t.empty()) CreateBehavior(t);
         if (kind == "newquest" && !t.empty()) CreateFlow("quest", t);
         if (kind == "newdialogue" && !t.empty()) CreateFlow("dialogue", t);
+        if (kind == "newcutscene" && !t.empty()) CreateFlow("cutscene", t);
         return;
     }
     if (Button("cancel", {d.x + dw - 104, d.y + dh - 40, 90, 28}, "Cancel") || IsKeyPressed(KEY_ESCAPE)) close();

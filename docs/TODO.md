@@ -38,6 +38,15 @@ Zbývá: ladění přímo v editoru bez spuštění hry (grafy), undo a více uz
 Společné pro všechny čtyři grafy (`editor_graph_edit.cpp`, výběr ve `ui::graph`): snímkový undo/redo (až 100 kroků, tahy myší a psaní se slučují do jednoho kroku), výběr více uzlů (Shift, rámeček, Ctrl+A), tažení skupiny, hromadné mazání, Ctrl+C / X / V / D se zachováním spojení mezi kopírovanými uzly a systémová schránka. Ověřeno skriptovanými příkazy (`… undo|redo|commit|copy|paste|duplicate|select_idx|delete_selected|undo_depth`) na behavior stromu, animátoru, dialogu i questu (počty, unikátní jména, platná spojení, odmítnutí vložení do jiného druhu grafu, přesná obnova dokumentu) a snímkem výběru. **Neověřeno automaticky:** samotná myš (výběrový rámeček, Shift-klik, tažení skupiny, Space + tažení) a klávesové zkratky v běžícím editoru.
 Regresní test dialogu: `quest after`, `quest walk`, `rbs.camera_active` a dialog `auto_demo` hlídají, že se po dialogu uvolní skriptovaná kamera (smoke test `quest_camera_release`; ověřeno, že při rozbitém uvolnění selže).
 
+## Cutscény jako graf (hotové)
+Hotovo (2026-10-29): `base/scripts/cutscene.lua` na flow enginu (paralelní větve, Join, Delay… fungují i tam): uzly *Camera shot* (stejné záběry jako v dialozích), *Camera move*, *Animate*, *Move character*, *Fade*, *Title text* a akce *Cutscene* v questech / dialozích; cíle `player` / `targetname` / bod `x y z`; letterbox, schovaný HUD, nezranitelný hráč, přeskočení dvojitým Space / Enter (uzly mají `skip`, postavy skončí v koncovém stavu), plynulé vrácení kamery (`rbs.camera_*`); entita `cutscene_start`; editor: Project → Cutscenes, graf, Inspector (styl scény), pole `entity` s menu jmen z mapy, tlačítko *Look through this camera* (konzole `flow look`); konzole `quest cutscene` / `quest skip`; dokumentace `docs/CUTSCENES.md`.
+
+Ověřeno: `quest selftest` (72 kontrol, z toho cutscény: běh, jen jedna najednou, návrat kamery a zranitelnosti, odeznění prolínačky, paralelní větve + Join, přeskočení; kontrola přeskočení spadne, když se rozbije `skip` uzlu Fade), intro v quest_demo do přirozeného konce i s přeskočením (kamera vypnutá, HUD a zbraň zpět, fade 0), snímky editoru (graf, Inspector, pohled kamerou), starší scénáře (BT test, quest, uvolnění kamery, save / load, editory) bez regrese.
+
+Neověřeno automaticky: klikání myší v grafu a na tlačítko *Look through…* (testuje se přes konzoli), dvojitý Space / Enter ve hře, `cutscene_start` v mapě, smoke skript na Linuxu (běželo se ručně po scénářích na macOS).
+
+Zbývá: časová osa (timeline) místo grafu, přehrání celé scény přímo v editoru, zvuk / hudba jako uzly, překlady titulků, vlastní kamery jako entity s dráhou.
+
 ## Ukládání her (hotové)
 Hotovo: sloty (autosave při vstupu na mapu, quicksave F6 / F9, 10 slotů, libovolná jména), nabídky *Save game* / *Load game* a *Continue*, konzole `save` / `load` / `saves`, `rbs.save_game` / `rbs.load_game`; ukládá se hráč, všechny entity (včetně odstraněných a nově vzniklých), pole z Lua (`rbs.save_fields` / `load_fields`, hook `loaded`), stav questů a proměnné, úkoly, statistiky; atomický zápis. Dokumentace `docs/SAVES.md`.
 

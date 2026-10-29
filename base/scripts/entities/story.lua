@@ -57,3 +57,25 @@ rbs.class("set_var", {
     else rbs.flow.set(key, rbs.flow.parse_value(p.value)) end
   end,
 })
+
+rbs.class("cutscene_start", {
+  editor = { category = "story", color = {255, 120, 200}, mins = {-8, -8, -8}, maxs = {8, 8, 8},
+             desc = "Plays a cutscene (cutscenes/<name>.json): when the map starts (auto = 1) or when it is used / triggered (give it a targetname).",
+             props = { cutscene = "", auto = 0, once = 1, targetname = "" },
+             help = { cutscene = "cutscene asset (cutscenes/<name>.json) made in Project > Cutscenes",
+                      auto = "1 = play when the map starts",
+                      once = "1 = play only the first time (remembered in the save game)" } },
+  spawn = function(self)
+    self.solid = "not"
+    self.visible = false
+    if util.num(self.props.auto, 0) ~= 0 then self:play_it() end
+  end,
+  use = function(self) self:play_it() end,
+  play_it = function(self)
+    local name = self.props.cutscene or ""
+    if name == "" then return end
+    local seen = "cutscene." .. name .. ".played"
+    if util.num(self.props.once, 1) ~= 0 and rbs.flow.vars[seen] then return end
+    if rbs.flow.start_cutscene(name) then rbs.flow.set(seen, true) end
+  end,
+})

@@ -56,7 +56,7 @@ function rbs.flow_node(def)
                 params = def.params or {}, ports = def.ports or {"next"}, scopes = def.scopes or {"quest", "dialogue"}}
   if not flow.library[def.id] then flow.order[#flow.order + 1] = def.id end
   flow.library[def.id] = meta
-  flow.impl[def.id] = {enter = def.enter, event = def.event, update = def.update, hud = def.hud, join = def.join}
+  flow.impl[def.id] = {enter = def.enter, event = def.event, update = def.update, hud = def.hud, join = def.join, skip = def.skip}
   refresh_library()
 end
 
@@ -168,7 +168,8 @@ end
 
 local function path_of(kind, name)
   if name:find("/", 1, true) then return name end
-  return (kind == "quest" and "quests/" or "dialogues/") .. name .. (name:match("%.json$") and "" or ".json")
+  local dir = kind == "quest" and "quests/" or kind == "cutscene" and "cutscenes/" or "dialogues/"
+  return dir .. name .. (name:match("%.json$") and "" or ".json")
 end
 
 local function short_name(name) return (name:match("([^/]+)%.json$")) or name end
@@ -221,10 +222,16 @@ local function finish(inst, result)
     end
     save()
     flow.event("quest", inst.name, inst.result)
+  elseif inst.kind == "cutscene" then
+    if flow.cutscene == inst then
+      flow.cutscene = nil
+      if flow.cut then flow.cut.on_finish(inst) end
+    end
+    flow.event("cutscene_end", inst.name)
   else
     if flow.dialogue == inst then
       flow.dialogue = nil
-      rbs.freeze(false)
+      rbs.freeze(flow.cutscene ~= nil)  -- a cutscene around the dialogue keeps the player frozen
       if flow.view then flow.view.on_finish(inst) end
     end
     flow.event("dialogue_end", inst.name)
@@ -264,12 +271,15 @@ leave = function(inst, node, port)
   check_idle(inst)
 end
 
-flow.enter, flow.leave = enter, leave  -- scripts/dialogue.lua moves its dialogue through the graph with them
+flow.enter, flow.leave, flow.finish = enter, leave, finish  -- scripts/dialogue.lua and cutscene.lua move their graphs with them
 
 -- Tells the running quests something happened.
 function flow.event(kind, a, b)
   if rbs.cvar("quest_debug") ~= 0 and kind ~= "var" then rbs.log(string.format("[quest] event %s %s", tostring(kind), tostring(a))) end
-  for _, inst in pairs(flow.quests) do
+  local running = {}
+  for _, q in pairs(flow.quests) do running[#running + 1] = q end
+  if flow.cutscene then running[#running + 1] = flow.cutscene end
+  for _, inst in ipairs(running) do
     if not inst.done then
       local ids = {}
       for id in pairs(inst.active) do ids[#ids + 1] = id end
@@ -292,6 +302,7 @@ local function new_instance(kind, graph, name)
   for _, n in ipairs(graph.nodes) do inst.nodes[n.id] = n end
   return inst
 end
+flow.new_instance = new_instance
 
 -- ---------------------------------------------------------------------------------
 -- quests
@@ -449,7 +460,10 @@ function rbs._update(dt)
     local pl = rbs.player()
     if pl then pl.vel = vec(0, pl.vel.y, 0) + vec(0, 0, 1) * 160 end
   end
-  for _, inst in pairs(flow.quests) do
+  local running = {}
+  for _, q in pairs(flow.quests) do running[#running + 1] = q end
+  if flow.cutscene then running[#running + 1] = flow.cutscene end
+  for _, inst in ipairs(running) do
     if not inst.done then
       local ids = {}
       for id in pairs(inst.active) do ids[#ids + 1] = id end
@@ -464,6 +478,8 @@ function rbs._update(dt)
       end
     end
   end
+  if flow.cutscene and flow.cut then flow.cut.update(flow.cutscene, dt) end
+  if flow.cut then flow.cut.idle(dt) end
   local d = flow.dialogue
   if d and not d.done then
     local ids = {}
@@ -532,6 +548,7 @@ end
 
 function rbs.draw_story(w, h)
   if not flow.cinematic then draw_quests(w, h) end
+  if flow.cut then flow.cut.draw(w, h) end
   if flow.view then flow.view.draw_game(w, h) end
 end
 
@@ -539,7 +556,7 @@ end
 -- built-in nodes
 -- ---------------------------------------------------------------------------------
 local OPS = {"==", "!=", "<", "<=", ">", ">="}
-local BOTH = {"quest", "dialogue"}
+local BOTH = {"quest", "dialogue", "cutscene"}
 local QUEST = {"quest"}
 local DIALOGUE = {"dialogue"}
 
@@ -734,7 +751,8 @@ node({id = "dialogue", category = "action", title = "Dialogue", scopes = BOTH,
         st.name = short_name(name)
         if not flow.start_dialogue(name) then return "next" end
       end,
-      event = function(inst, n, st, k, a) if k == "dialogue_end" and a == st.name then return "next" end end})
+      event = function(inst, n, st, k, a) if k == "dialogue_end" and a == st.name then return "next" end end,
+      skip = function() if flow.dialogue then flow.finish(flow.dialogue, "success") end end})  -- a skipped cutscene ends its dialogue
 
 node({id = "log", category = "action", title = "Log", scopes = BOTH, desc = "Writes a line to the console (debugging).",
       params = {{name = "text", type = "string", default = ""}},
@@ -782,6 +800,10 @@ function rbs.quest_console(line)
     flow.timers[#flow.timers + 1] = {at = rbs.time() + (tonumber(args[2]) or 0), line = table.concat(rest, " ")}
   elseif cmd == "walk" then
     flow.walk_until = rbs.time() + (tonumber(args[2]) or 1)  -- test helper: the player walks on by itself
+  elseif cmd == "cutscene" then rbs.log("cutscene " .. tostring(args[2]) .. ": " .. tostring(flow.start_cutscene(args[2] or "")))
+  elseif cmd == "skip" then
+    if flow.cutscene then flow.cut.skip(flow.cutscene) end
+    rbs.log("skip: " .. tostring(flow.cutscene == nil))
   elseif cmd == "tp" then
     -- quest tp x y z [yaw]: moves the player (test helper)
     local pl = rbs.player()
@@ -813,6 +835,7 @@ function rbs.quest_console(line)
     table.sort(keys)
     rbs.log("VARS " .. table.concat(keys, " "))
     rbs.log("CAMERA " .. (rbs.camera_active() and "on" or "off") .. " cinematic " .. tostring(flow.cinematic == true))
+    rbs.log("CUTSCENE " .. (flow.cutscene and flow.cutscene.name or "none") .. " fade " .. string.format("%.2f", flow.cut and flow.cut.fade or 0))
     local pl = rbs.player()
     if pl then
       rbs.log(string.format("PLAYER %.0f %.0f %.0f hp %.0f armor %.0f", pl.pos.x, pl.pos.y, pl.pos.z, pl.health, pl.armor or 0))
