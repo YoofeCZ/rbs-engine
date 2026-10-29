@@ -1,0 +1,48 @@
+// RBS Engine - entry point.
+//
+//   rbs                      start with the main menu
+//   rbs --map e1m1           start a map directly
+//   rbs --editor [map]       open the level editor
+//   rbs --mod mymod          run with a mod (folder in mods/)
+//   rbs --screenshot out.png [--frames N] [--exec "cmd; cmd"]   automated capture
+#include "app/app.h"
+#include "core/log.h"
+#include "core/vfs.h"
+
+#include <cstdio>
+#include <cstring>
+
+int main(int argc, char** argv) {
+    rbs::LogInit();
+    if (!rbs::vfs::Init(argc > 0 ? argv[0] : nullptr)) {
+        fprintf(stderr, "RBS Engine: cannot find the game data folder (base/). Run from the engine folder.\n");
+        return 1;
+    }
+    rbs::LaunchOptions opt;
+    for (int i = 1; i < argc; ++i) {
+        std::string a = argv[i];
+        auto next = [&]() -> std::string { return i + 1 < argc ? argv[++i] : ""; };
+        if (a == "--map" || a == "+map") opt.map = next();
+        else if (a == "--mod" || a == "-game") opt.mod = next();
+        else if (a == "--editor") {
+            opt.editor = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') opt.editorMap = next();
+        } else if (a == "--screenshot") opt.screenshot = next();
+        else if (a == "--frames") opt.screenshotFrames = atoi(next().c_str());
+        else if (a == "--exec") opt.exec = next();
+        else if (a == "--width") opt.width = atoi(next().c_str());
+        else if (a == "--height") opt.height = atoi(next().c_str());
+        else if (a == "--fullscreen") opt.fullscreen = true;
+        else if (a == "--help" || a == "-h") {
+            printf("RBS Engine %s\n  --map <name>  --editor [map]  --mod <name>  --width W --height H  --fullscreen\n"
+                   "  --screenshot <file.png> [--frames N] [--exec \"commands\"]\n", RBS_VERSION);
+            return 0;
+        }
+    }
+    if (!opt.mod.empty()) rbs::vfs::SetMod(opt.mod);
+    rbs::App app;
+    if (!app.Init(opt)) return 1;
+    app.Run();
+    app.Shutdown();
+    return 0;
+}

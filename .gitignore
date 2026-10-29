@@ -1,0 +1,20 @@
+# build output
+build/
+build-*/
+out/
+cmake-build-*/
+# runtime files
+config.cfg
+base/cache/
+mods/*/cache/
+*.lmcache
+screenshot_*.png
+# plugin build output
+sdk/examples/**/target/
+sdk/examples/**/build/
+sdk/examples/**/bin/
+sdk/examples/**/obj/
+__pycache__/
+.vs/
+.vscode/
+.idea/
