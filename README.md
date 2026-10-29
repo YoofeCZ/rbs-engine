@@ -95,7 +95,7 @@ Spustitelný soubor si najde složku `base/` sám (vedle sebe nebo v nadřazený
 ### Spuštění
 
 ```bash
-./build/rbs                         # hlavní menu
+./build/rbs                         # engine = editor (menu hry má až zbuildovaná hra)
 ./build/rbs --map e1m1              # rovnou mapa
 ./build/rbs --editor e1m1           # editor
 ./build/rbs --mod example_mod       # s modem

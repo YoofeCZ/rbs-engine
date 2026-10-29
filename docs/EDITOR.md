@@ -2,7 +2,7 @@
 
 ![Editor](images/editor.jpg)
 
-Editor spustíš příkazem `rbs --editor [mapa]`, z hlavního menu (**Editor map**), nebo příkazem `editor` v konzoli. Mapy se ukládají jako JSON (`maps/<jméno>.json`) do otevřeného projektu (`mods/<projekt>/`), nebo do `base/`, když žádný projekt otevřený není.
+Engine se po spuštění (`rbs`) otevře rovnou v editoru; menu s *New game* / *Maps* / *Mods* má jen zbuildovaná hra (`launch.json`). Editor jde otevřít i příkazem `rbs --editor [mapa]` nebo `editor` v konzoli. Mapy se ukládají jako JSON (`maps/<jméno>.json`) do otevřeného projektu (`mods/<projekt>/`), nebo do `base/`, když žádný projekt otevřený není.
 
 Jak v editoru udělat celou hru – projekt, nepřátelé, zbraně, nastavení a export – popisuje [GAME_CREATION.md](GAME_CREATION.md).
 

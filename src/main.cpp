@@ -1,6 +1,6 @@
 // RBS Engine - entry point.
 //
-//   rbs                      start with the main menu
+//   rbs                      open the editor (a built game, with launch.json, starts its own menu)
 //   rbs --map e1m1           start a map directly
 //   rbs --editor [map]       open the level editor
 //   rbs --mod mymod          run with a mod (folder in mods/)

@@ -27,6 +27,8 @@ static const Color kDim{150, 130, 110, 255};
 App::App() {}
 App::~App() { Shutdown(); }
 
+static std::string MapPathFromArg(const std::string& a);
+
 bool App::Init(const LaunchOptions& opt) {
     m_opt = opt;
     cvars::Register("vid_width", "1600", true, "window width");
@@ -62,8 +64,15 @@ bool App::Init(const LaunchOptions& opt) {
     m_editor = new Editor(this);
     RegisterCommands();
 
-    if (!opt.map.empty()) StartMap(opt.map);
-    else if (opt.editor) OpenEditor(opt.editorMap);
+    if (!opt.map.empty()) {
+        StartMap(opt.map);
+    } else if (opt.editor) {
+        OpenEditor(opt.editorMap);
+    } else if (!project::LaunchConfig().present) {
+        // the engine itself is the editor; the game's own menu only exists in a built game (launch.json)
+        std::string start = project::Current().startMap;
+        OpenEditor(!start.empty() && vfs::Exists(MapPathFromArg(start)) ? start : "");
+    }
     return true;
 }
 
