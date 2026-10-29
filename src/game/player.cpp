@@ -343,6 +343,50 @@ void Game::UpdateCamera(float dt) {
     m_camera.projection = CAMERA_PERSPECTIVE;
     m_listenerPos = eye;
     m_listenerRight = right;
+
+    // a script camera (dialogue shots) takes over, easing towards its target and back to the player
+    ScriptCamera& c = m_scriptCam;
+    if (c.active) {
+        Vector3 pf = m_camera.position + Norm(m_camera.target - m_camera.position) * 500.0f;
+        Vector3 tp = c.releasing ? m_camera.position : c.tpos, tl = c.releasing ? pf : c.tlook;
+        float tf = c.releasing ? m_camera.fovy : c.tfov;
+        if (!c.init) {
+            c.pos = m_camera.position;
+            c.look = pf;
+            c.fov = m_camera.fovy;
+            c.init = true;
+        }
+        float k = c.rate <= 0 ? 1.0f : 1.0f - expf(-c.rate * dt);
+        c.pos = c.pos + (tp - c.pos) * k;
+        c.look = c.look + (tl - c.look) * k;
+        c.fov = c.fov + (tf - c.fov) * k;
+        Vector3 d = c.pos - tp;
+        if (c.releasing && d.x * d.x + d.y * d.y + d.z * d.z < 0.25f && fabsf(c.fov - tf) < 0.2f) {
+            c.active = false;  // back at the player's eyes
+        } else {
+            m_camera.position = c.pos;
+            m_camera.target = c.look;
+            m_camera.up = {0, 1, 0};
+            m_camera.fovy = c.fov;
+        }
+    }
+}
+
+void Game::SetScriptCamera(Vector3 pos, Vector3 look, float fov, float rate) {
+    ScriptCamera& c = m_scriptCam;
+    if (!c.active) c.init = false;  // starting from the player's view; while it is moving, keep its position
+    c.active = true;
+    c.releasing = false;
+    c.tpos = pos;
+    c.tlook = look;
+    c.tfov = fov;
+    c.rate = rate;
+}
+
+void Game::ClearScriptCamera(float rate) {
+    if (!m_scriptCam.active) return;
+    m_scriptCam.releasing = true;
+    m_scriptCam.rate = rate;
 }
 
 }  // namespace rbs

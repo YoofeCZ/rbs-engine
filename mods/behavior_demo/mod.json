@@ -1,0 +1,5 @@
+{
+  "title": "Behavior tree demo",
+  "description": "An arena with grunts that follow behaviors/soldier.json and fiends that follow behaviors/ambusher.json (Project > Behaviors in the editor).",
+  "author": "RBS Engine"
+}

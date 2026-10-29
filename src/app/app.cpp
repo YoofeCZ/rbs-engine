@@ -44,6 +44,9 @@ bool App::Init(const LaunchOptions& opt) {
     if (Cvar* ch = cvars::Find("vid_height")) if (ch->i > 0 && opt.height == 900) h = ch->i;
     unsigned flags = FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT;
     if (cvars::GetF("vid_vsync", 1) != 0 && opt.screenshot.empty()) flags |= FLAG_VSYNC_HINT;
+    if (!opt.screenshot.empty() && !opt.visible) m_hidden = true;
+    if (opt.hidden) m_hidden = true;
+    if (m_hidden) flags |= FLAG_WINDOW_HIDDEN;
     SetConfigFlags(flags);
     SetTraceLogLevel(LOG_WARNING);
     InitWindow(w, h, WindowTitle().c_str());
@@ -52,6 +55,7 @@ bool App::Init(const LaunchOptions& opt) {
     int fpsMax = (int)cvars::GetF("fps_max", 300);
     SetTargetFPS(opt.screenshot.empty() ? fpsMax : 0);
     InitAudioDevice();
+    if (m_hidden) SetMasterVolume(0);
     assets::Init();
     if (!gRenderer.Init()) LOG_ERR("Renderer initialisation had errors (see above)");
     plugins::LoadAll();
@@ -331,6 +335,69 @@ void App::RegisterCommands() {
         std::string report;
         project::Build(o, &report);
     }, "build_game [folder] [editor|noeditor] [demo] - export the open project as a standalone game");
+    cvars::AddCommand("next_level", [this](const std::vector<std::string>&) {
+        if (m_state != State::Game || !m_game.LevelEnded()) {
+            LOG_INFO("next_level: only on the level-complete screen");
+            return;
+        }
+        std::string next = m_game.PendingMap();
+        if (next.empty() || next == "*") ReturnToMenu();
+        else StartMap(next, true);
+    }, "continue from the level-complete screen (same as pressing Enter; for tests)");
+    cvars::AddCommand("quest", [this](const std::vector<std::string>& a) {
+        if (m_state != State::Game) {
+            LOG_INFO("quest: needs a running map (start with --map <name>)");
+            return;
+        }
+        std::string line;
+        for (size_t i = 1; i < a.size(); ++i) line += (i > 1 ? " " : "") + a[i];
+        m_game.Scripts().CallHookString("quest_console", line);
+    }, "quest <start|event|var|say|next|pick|dump|selftest ...> - drive quests and dialogues (tests)");
+    cvars::AddCommand("bt_selftest", [this](const std::vector<std::string>&) {
+        if (m_state != State::Game) {
+            LOG_INFO("bt_selftest needs a running map (start with --map <name>)");
+            return;
+        }
+        m_game.Scripts().CallHook("bt_selftest");
+    }, "run the behavior tree self-test (prints BT SELFTEST PASS / FAIL)");
+    cvars::AddCommand("edit_animator", [this](const std::vector<std::string>& a) {
+        if (a.size() < 2 || m_state != State::Editor) {
+            LOG_INFO("edit_animator <name> - open an animator in the editor (editor only)");
+            return;
+        }
+        m_editor->OpenAnimator(a[1]);
+    }, "edit_animator <name> - open an animator in the graph editor");
+    cvars::AddCommand("flow", [this](const std::vector<std::string>& a) {
+        if (m_state != State::Editor) {
+            LOG_INFO("flow: only in the editor");
+            return;
+        }
+        std::string r = m_editor->FlowCommand(a);
+        if (!r.empty()) LOG_INFO("%s", r.c_str());
+    }, "flow <open|create|add|link|set|option|select|delete|arrange|save|dump ...> - script the quest / dialogue editor (tests)");
+    cvars::AddCommand("edit_behavior", [this](const std::vector<std::string>& a) {
+        if (a.size() < 2 || m_state != State::Editor) {
+            LOG_INFO("edit_behavior <name> - open a behavior tree in the editor (editor only)");
+            return;
+        }
+        m_editor->OpenBehavior(a[1]);
+    }, "edit_behavior <name> - open a behavior tree in the graph editor");
+    cvars::AddCommand("behavior", [this](const std::vector<std::string>& a) {
+        if (m_state != State::Editor) {
+            LOG_INFO("behavior: only in the editor");
+            return;
+        }
+        std::string r = m_editor->BehaviorCommand(a);
+        if (!r.empty()) LOG_INFO("%s", r.c_str());
+    }, "behavior <open|create|add|link|set|select|delete|arrange|save|dump ...> - script the behavior tree editor (tests)");
+    cvars::AddCommand("animator", [this](const std::vector<std::string>& a) {
+        if (m_state != State::Editor) {
+            LOG_INFO("animator: only in the editor");
+            return;
+        }
+        std::string r = m_editor->AnimatorCommand(a);
+        if (!r.empty()) LOG_INFO("%s", r.c_str());
+    }, "animator <open|select_state|select_link|add_state|link|param|save|dump ...> - script the animator editor (tests)");
     cvars::AddCommand("plugins", [](const std::vector<std::string>&) {
         auto list = plugins::Loaded();
         if (list.empty()) LOG_INFO("No native plugins loaded (put .dll/.so/.dylib files into plugins/)");
@@ -417,7 +484,7 @@ void App::Run() {
                 }
             }
             if (m_paused && m_page == MenuPage::Pause && !consoleInput) UpdateMenu(dt);
-            SetCursor(!m_paused && !m_game.LevelEnded() && !m_game.Loading());
+            SetCursor(!m_paused && !m_game.LevelEnded() && !m_game.Loading() && !m_game.UiFrozen());
         } else if (m_state == State::Menu) {
             SetCursor(false);
             if (!consoleInput) UpdateMenu(dt);

@@ -22,7 +22,7 @@ idle ──uvidí hráče / zásah / trigger──▶ chase ──hráč v dosah
 - **attack** – přehraje animaci `attack`, po `attack_delay` sekundách zavolá `attack()` a `attack_time` sekund stojí. Další útok nejdřív za `attack_cooldown` sekund.
 - **pain**, **flee**, **dead** – krátké ucuknutí, útěk, smrt (pod `gib_health` se tělo rozletí na kusy; i mrtvolu jde rozstřílet).
 
-Z 3D modelu se používají animace pojmenované `idle`, `walk`, `attack`, `pain` a `death` (glTF, viz [MODDING.md](MODDING.md#3d-modely-modelsglb)). Když model nějakou nemá, prostě se nepřehraje.
+Z 3D modelu se používají animace pojmenované `idle`, `walk`, `attack`, `pain` a `death` (glTF, viz [MODDING.md](MODDING.md#3d-modely-modelsglb)). Když model nějakou nemá, prostě se nepřehraje. Místo vestavěné AI může příšeru řídit **strom chování** (`ai = behavior`, vlastnost `behavior`), viz [BEHAVIOR.md](BEHAVIOR.md). Vlastnost `animator` připojí [animátor](ANIMATION.md) (prolínání, přechody, události); AI mu pak posílá jen triggery `attack` a `pain` a chůzi a smrt si animátor řídí sám.
 
 ## Vlastnosti
 

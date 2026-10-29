@@ -277,7 +277,26 @@ float Editor::Impl::PropEditor(const std::string& id, Rectangle r, float y, json
         bool changed = false;
         json nv = value;
         const json* options = enums && enums->contains(k) && (*enums)[k].is_array() ? &(*enums)[k] : nullptr;
-        if (options) {
+        if (k == "animator" || k == "behavior" || k == "quest" || k == "dialogue") {
+            // asset files of the project: a dropdown (drop one from the Project panel too)
+            bool anim = k == "animator";
+            std::string cur = value.is_string() ? value.get<std::string>() : "";
+            std::vector<std::string> opts = anim ? AnimatorOptions() : k == "behavior" ? BehaviorOptions() : k == "quest" ? QuestOptions() : DialogueOptions();
+            if (!cur.empty() && std::find(opts.begin(), opts.end(), cur) == opts.end()) opts.push_back(cur);
+            std::string shown = cur.empty() ? "(none)" : cur;
+            bool pick = Dropdown("asset", fr, shown, opts);
+            if (Hovered(fr) && DragReleased() && DragType() == k) shown = DragPayload(), pick = true;
+            if (pick) {
+                nv = shown == "(none)" ? "" : shown;
+                changed = true;
+                if (k == "behavior") {
+                    // a tree needs ai = behavior (and without one the monster goes back to chasing)
+                    std::string ai = props.is_object() && props.contains("ai") && props["ai"].is_string() ? props["ai"].get<std::string>() : "";
+                    if (!nv.get<std::string>().empty()) props["ai"] = "behavior";
+                    else if (ai == "behavior") props["ai"] = "chase";
+                }
+            }
+        } else if (options) {
             // fixed choices (ai, attack_type...): a dropdown, keeping an unknown current value
             std::vector<std::string> opts;
             for (auto& o : *options)
@@ -769,7 +788,8 @@ void Editor::Impl::DrawInspector(Rectangle r) {
     for (auto it = selBrushes.begin(); it != selBrushes.end();) it = (*it >= (int)map.brushes.size()) ? selBrushes.erase(it) : std::next(it);
     for (auto it = selEnts.begin(); it != selEnts.end();) it = (*it >= (int)map.entities.size()) ? selEnts.erase(it) : std::next(it);
     if (HasSelection() || !selFaces.empty()) inspectKind.clear();  // picking in the scene leaves the asset
-    if (!inspectKind.empty()) y = InspectAsset(cr, y);
+    if (activeDoc >= 0) y = InspectDocument(cr, y);
+    else if (!inspectKind.empty()) y = InspectAsset(cr, y);
     else if (!selFaces.empty() && tool == Tool::Face) y = InspectFaces(cr, y);
     else if (selEnts.size() == 1) y = InspectEntity(cr, y);
     else if (!selBrushes.empty() && selEnts.empty()) y = InspectBrushes(cr, y);
@@ -805,7 +825,7 @@ void Editor::Impl::DrawBottom(Rectangle r) {
 }
 
 void Editor::Impl::DrawProject(Rectangle r) {
-    const char* folders[] = {"Entities", "Weapons", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
+    const char* folders[] = {"Entities", "Weapons", "Animators", "Behaviors", "Quests", "Dialogues", "Components", "Textures", "Models", "Sprites", "Sounds", "Prefabs", "Maps", "Scripts"};
     const int folderCount = (int)(sizeof(folders) / sizeof(folders[0]));
     float fw = 120;
     Fill({r.x, r.y, fw, r.height}, theme.panelAlt);
@@ -835,6 +855,33 @@ void Editor::Impl::DrawProject(Rectangle r) {
     }
     if (projectFolder == "Prefabs" && Button("saveprefab", {bx, top.y, 190, 22}, "Save selection as prefab", false, HasSelection()))
         dialog = "prefab", dialogText = "myprefab";
+    if (projectFolder == "Animators") {
+        if (Button("newanim", {bx, top.y, 140, 22}, "+ New animator")) {
+            newAnimName = "new_animator";
+            dialog = "newanimator";
+            dialogText = newAnimName;
+        }
+        if (Hovered({bx, top.y, 140, 22})) Tooltip("Make an animation state machine for a model (idle, walk, attack...) and edit it as a graph");
+        bx += 146;
+    }
+    if (projectFolder == "Quests" || projectFolder == "Dialogues") {
+        bool quests = projectFolder == "Quests";
+        if (Button("newflow", {bx, top.y, 140, 22}, quests ? "+ New quest" : "+ New dialogue")) {
+            dialog = quests ? "newquest" : "newdialogue";
+            dialogText = quests ? "new_quest" : "new_dialogue";
+        }
+        if (Hovered({bx, top.y, 140, 22}))
+            Tooltip(quests ? "Make a quest (objectives, branches, rewards) and edit it as a graph" : "Make a conversation (lines, answers, actions) and edit it as a graph");
+        bx += 146;
+    }
+    if (projectFolder == "Behaviors") {
+        if (Button("newbt", {bx, top.y, 140, 22}, "+ New behavior")) {
+            dialog = "newbehavior";
+            dialogText = "new_behavior";
+        }
+        if (Hovered({bx, top.y, 140, 22})) Tooltip("Make a behavior tree for monsters (what they do: look, chase, attack, flee...) and edit it as a graph");
+        bx += 146;
+    }
     if (projectFolder == "Entities" || projectFolder == "Weapons") {
         bool weapons = projectFolder == "Weapons";
         if (Button("newdef", {bx, top.y, 130, 22}, weapons ? "+ New weapon" : "+ New type")) {
@@ -850,6 +897,10 @@ void Editor::Impl::DrawProject(Rectangle r) {
     if (projectFolder == "Textures") hint = "click = current texture, double click = apply to selection, drag onto a face";
     else if (projectFolder == "Entities") hint = "click = edit in Inspector + Entity tool, drag into a view to place";
     else if (projectFolder == "Weapons") hint = "click = edit in Inspector";
+    else if (projectFolder == "Animators") hint = "double click = open the graph editor, drag onto an entity to use it";
+    else if (projectFolder == "Quests") hint = "double click = open the graph editor, drag onto a quest_start entity";
+    else if (projectFolder == "Dialogues") hint = "double click = open the graph editor, drag onto an npc";
+    else if (projectFolder == "Behaviors") hint = "double click = open the graph editor, drag onto a monster to use it";
     else if (projectFolder == "Components") hint = "drag onto an entity (3D view or hierarchy), or use Add Component";
     else if (projectFolder == "Models" || projectFolder == "Sprites" || projectFolder == "Sounds") hint = "drag into a view to place";
     else if (projectFolder == "Scripts") hint = "click to open in your text editor";
@@ -864,6 +915,10 @@ void Editor::Impl::DrawProject(Rectangle r) {
     if (projectFolder == "Entities") items = classNames;
     else if (projectFolder == "Weapons") items = weaponIds;
     else if (projectFolder == "Components") items = componentNames;
+    else if (projectFolder == "Animators") items = animatorList;
+    else if (projectFolder == "Behaviors") items = behaviorList;
+    else if (projectFolder == "Quests") items = questList;
+    else if (projectFolder == "Dialogues") items = dialogueList;
     else if (projectFolder == "Textures") items = textureList;
     else if (projectFolder == "Models") items = modelList;
     else if (projectFolder == "Sprites") items = spriteList;
@@ -941,6 +996,14 @@ void Editor::Impl::DrawProject(Rectangle r) {
             } else if (projectFolder == "Weapons") {
                 ClearSelection();
                 SelectAsset("weapon", it);
+            } else if (projectFolder == "Animators") {
+                StartDrag("animator", it, name);
+            } else if (projectFolder == "Behaviors") {
+                StartDrag("behavior", it, name);
+            } else if (projectFolder == "Quests") {
+                StartDrag("quest", it, name);
+            } else if (projectFolder == "Dialogues") {
+                StartDrag("dialogue", it, name);
             } else if (projectFolder == "Components") {
                 StartDrag("component", it, it);
             } else if (projectFolder == "Models") {
@@ -959,7 +1022,15 @@ void Editor::Impl::DrawProject(Rectangle r) {
             }
         }
         if (DoubleClicked(cell)) {
-            if (projectFolder == "Maps") {
+            if (projectFolder == "Animators") {
+                OpenDocument("animator", it);
+            } else if (projectFolder == "Behaviors") {
+                OpenDocument("behavior", it);
+            } else if (projectFolder == "Quests") {
+                OpenDocument("quest", it);
+            } else if (projectFolder == "Dialogues") {
+                OpenDocument("dialogue", it);
+            } else if (projectFolder == "Maps") {
                 if (dirty) {
                     dialog = "confirm_open";
                     dialogText = it;
@@ -1058,7 +1129,13 @@ void Editor::Impl::DrawDialogs(int w, int h) {
         if (Button("no", {d.x + dw - 104, d.y + dh - 40, 90, 28}, "Cancel") || IsKeyPressed(KEY_ESCAPE)) close();
         return;
     }
-    const char* title = dialog == "saveas" ? "Save map as (maps/<name>.json)" : (dialog == "prefab" ? "Save prefab (prefabs/<name>.json)" : "Tie brushes to entity class");
+    const char* title = dialog == "saveas"      ? "Save map as (maps/<name>.json)"
+                        : dialog == "prefab"    ? "Save prefab (prefabs/<name>.json)"
+                        : dialog == "newanimator" ? "New animator (animators/<name>.json)"
+                        : dialog == "newbehavior" ? "New behavior (behaviors/<name>.json)"
+                        : dialog == "newquest"    ? "New quest (quests/<name>.json)"
+                        : dialog == "newdialogue" ? "New dialogue (dialogues/<name>.json)"
+                                                : "Tie brushes to entity class";
     Text(title, d.x + 14, d.y + 12, theme.text, 15, "ui_bold");
     if (dialog == "tie") {
         std::vector<std::string> brushClasses;
@@ -1076,6 +1153,10 @@ void Editor::Impl::DrawDialogs(int w, int h) {
         if (kind == "saveas" && !t.empty()) SaveMap(t);
         if (kind == "prefab" && !t.empty()) SavePrefab(t);
         if (kind == "tie" && !t.empty()) TieToEntity(t);
+        if (kind == "newanimator" && !t.empty()) CreateAnimator(t);
+        if (kind == "newbehavior" && !t.empty()) CreateBehavior(t);
+        if (kind == "newquest" && !t.empty()) CreateFlow("quest", t);
+        if (kind == "newdialogue" && !t.empty()) CreateFlow("dialogue", t);
         return;
     }
     if (Button("cancel", {d.x + dw - 104, d.y + dh - 40, 90, 28}, "Cancel") || IsKeyPressed(KEY_ESCAPE)) close();

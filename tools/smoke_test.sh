@@ -10,7 +10,7 @@ OUT="${2:-$ROOT/build/smoke}"
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 status=0
-BAD='Lua error|^Lua:|Lua prelude failed|init.lua not found|Script initialisation failed|Map not found|Cannot load map|Shader (files missing|failed)|^Plugin |Missing (texture|image|model|sound|loop sound)|Unknown (entity class|component|weapon)|disabled after error|unknown property|invalid editor_json'
+BAD='Lua error|^Lua:|Lua prelude failed|init.lua not found|Script initialisation failed|Map not found|Cannot load map|Shader (files missing|failed)|^Plugin |Missing (texture|image|model|sound|loop sound|animator|behavior|quest|dialogue)|Invalid (animator|behavior|quest|dialogue)|BT SELFTEST FAIL|FLOW SELFTEST FAIL|unknown node type|Unknown (entity class|component|weapon)|disabled after error|unknown property|invalid editor_json'
 
 # run <name> <WxH> [args...]; RUN_BIN / RUN_DIR pick another executable / working folder
 run() {
@@ -35,6 +35,51 @@ run game 1280x720 --map e1m1 --frames 60
 run editor 1600x900 --editor e1m1 --frames 30
 run lua_mod 1280x720 --mod example_mod --map mod_arena --frames 60
 run plugins 1280x720 --mod plugin_demo --map plugin_test --frames 60
+# behavior trees: the node self-test, the demo arena (monsters running trees) and the tree editor
+run bt_selftest 1280x720 --map e1m1 --exec "bt_selftest" --frames 20
+if ! grep -q "BT SELFTEST PASS" "$OUT/bt_selftest.log"; then
+    echo "   FAILED: the behavior tree self-test did not pass"
+    status=1
+fi
+run behavior_demo 1280x720 --mod behavior_demo --map bt_arena --exec "bt_debug 2" --frames 120
+if ! grep -q "Soldier >" "$OUT/behavior_demo.log"; then
+    echo "   FAILED: no monster ran its behavior tree in behavior_demo"
+    status=1
+fi
+run behavior_editor 1600x900 --editor e1m1 --exec "behavior open soldier; behavior select n6" --frames 30
+if ! grep -q "opened behaviors/soldier.json" "$OUT/behavior_editor.log"; then
+    echo "   FAILED: the behavior editor did not open behaviors/soldier.json"
+    status=1
+fi
+# quests and dialogues: the flow self-test, a scripted talk -> quest -> kills -> done run in the demo mod, and the graph editor
+run flow_selftest 1280x720 --map e1m1 --exec "quest selftest" --frames 20
+if ! grep -q "FLOW SELFTEST PASS" "$OUT/flow_selftest.log"; then
+    echo "   FAILED: the quest / dialogue self-test did not pass"
+    status=1
+fi
+run quest_demo 1280x720 --mod quest_demo --map quest_arena --frames 30 --exec "god; quest say guard; quest next; quest pick 1; quest next; quest event kill monster_grunt; quest event kill monster_grunt; quest event kill monster_grunt; quest event pickup item_rockets; quest dump"
+if ! grep -q "QUEST clear_arena \[done\]" "$OUT/quest_demo.log"; then
+    echo "   FAILED: the guard dialogue did not start and complete the clear_arena quest in quest_demo"
+    status=1
+fi
+run flow_editor 1600x900 --mod quest_demo --editor quest_arena --frames 30 --exec "flow open dialogue guard; flow select c1"
+if ! grep -q "opened dialogues/guard.json" "$OUT/flow_editor.log"; then
+    echo "   FAILED: the dialogue editor did not open dialogues/guard.json"
+    status=1
+fi
+run dialogue_preview 1600x900 --mod quest_demo --editor quest_arena --frames 60 --exec "flow open dialogue guard; flow select intro; flow preview max"
+if ! grep -q "opened dialogues/guard.json" "$OUT/dialogue_preview.log"; then
+    echo "   FAILED: the dialogue editor preview did not open"
+    status=1
+fi
+# a dialogue that is still typing (voice blips overlap, the sound alias pool fills) when the game exits
+run quest_voice 1280x720 --mod quest_demo --map quest_arena --frames 150 --exec "god; quest say guard"
+# the animator editor: opens the grunt animator in a tab and selects a state
+run animator_editor 1600x900 --editor e1m1 --exec "animator open grunt; animator select_state walk" --frames 30
+if ! grep -q "opened animators/grunt.json" "$OUT/animator_editor.log"; then
+    echo "   FAILED: the animator editor did not open animators/grunt.json"
+    status=1
+fi
 
 # whichever example plugins were built must have loaded
 for lib in "$ROOT"/mods/plugin_demo/plugins/*.{so,dylib}; do

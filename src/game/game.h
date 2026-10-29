@@ -121,6 +121,16 @@ public:
     PlayerState& PS() { return m_ps; }
     GameStats& Stats() { return m_stats; }
     const std::vector<Objective>& Objectives() const { return m_objectives; }
+    // values scripts keep across maps (quest progress): cleared when a new game starts
+    std::map<std::string, std::string>& Persist() { return m_persist; }
+    // while a script shows a dialogue the player neither moves nor shoots and the cursor is free
+    bool UiFrozen() const { return m_uiFreeze; }
+    // A script camera (dialogue shots): the view moves smoothly (rate = how fast, 0 = at once) to
+    // this position / look-at point / vertical fov, and back to the player when cleared.
+    void SetScriptCamera(Vector3 pos, Vector3 look, float fov, float rate);
+    void ClearScriptCamera(float rate);
+    bool ScriptCameraActive() const { return m_scriptCam.active; }
+    void SetUiFreeze(bool f) { m_uiFreeze = f; }
     const Map& GetMap() const { return m_map; }
     Script& Scripts() { return m_script; }
     float Time() const { return m_time; }
@@ -150,6 +160,13 @@ private:
     GameStats m_stats;
     Carry m_carry;
     std::vector<Objective> m_objectives;
+    std::map<std::string, std::string> m_persist;
+    struct ScriptCamera {
+        bool active = false, releasing = false, init = false;
+        Vector3 pos{}, look{}, tpos{}, tlook{};
+        float fov = 60, tfov = 60, rate = 6;
+    } m_scriptCam;
+    bool m_uiFreeze = false;
     std::string m_message;
     float m_messageTime = 0;
     std::string m_pendingMap;

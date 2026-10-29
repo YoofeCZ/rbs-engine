@@ -2,12 +2,15 @@
 #pragma once
 
 #include "editor/editor.h"
+#include "game/animator.h"
 #include "render/lightmap.h"
 #include "render/renderer.h"
 #include "render/world_renderer.h"
 #include "script/script.h"
+#include "ui/graph.h"
 
 #include <map>
+#include <memory>
 #include <set>
 
 namespace rbs {
@@ -34,6 +37,35 @@ struct FaceRef {
     int brush = -1, face = -1;
     bool operator<(const FaceRef& o) const { return brush < o.brush || (brush == o.brush && face < o.face); }
     bool operator==(const FaceRef& o) const { return brush == o.brush && face == o.face; }
+};
+
+// A graph document opened in a tab in the centre of the editor (animators now; behavior
+// trees and quests will use the same tabs and canvas).
+struct Document {
+    std::string kind = "animator";
+    std::string name, path;  // path: "animators/<name>.json"
+    json def;                // the file being edited
+    bool dirty = false, confirmClose = false;
+    ui::graph::View view;
+    bool fitted = false;
+    int makeFrom = -1;       // "Make transition" waits for a click on the target state
+    int selParam = -1;       // parameter selected in the Parameters panel
+    float paramsScroll = 0;
+    // animator preview: the model plays the animator, parameters are driven from the panel
+    std::string previewModel;
+    std::shared_ptr<AnimatorInstance> preview;
+    bool previewStale = true;
+    RenderTexture2D rt{};
+    float previewYaw = 150;
+    std::string lastEvents;
+    double lastEventTime = 0;
+    // behavior tree / quest graph: the node a context menu entry adds
+    std::map<std::string, std::string> menuTypes;
+    // dialogue preview: which line is shown, since when its text types, panel size
+    std::string previewNode;
+    double previewStart = 0;
+    bool previewMax = false;
+    std::string previewInfo;
 };
 
 struct Editor::Impl {
@@ -119,6 +151,40 @@ struct Editor::Impl {
     std::vector<std::string> VariantBases() const;
     void OpenProjectDialog();
     void DrawProjectDialog(int w, int h);  // dialog kinds: project, newproject, newtype, newweapon
+
+    // ---- graph documents in tabs (editor_animator.cpp) ----
+    std::vector<std::unique_ptr<Document>> docs;
+    int activeDoc = -1;  // -1 = the level (scene views)
+    std::vector<std::string> animatorList, behaviorList, questList, dialogueList;
+    json btLibrary;  // rbs.bt_library from scripts/behavior.lua: node types and blackboard keys
+    json flowLibrary;  // rbs.flow_library from scripts/quests.lua: node types of quests and dialogues
+    json dialogueDefaults;  // rbs.dialogue_defaults from scripts/dialogue.lua: style defaults, shots, motions
+    std::string newAnimName;
+    Document* Doc() { return activeDoc >= 0 && activeDoc < (int)docs.size() ? docs[activeDoc].get() : nullptr; }
+    void OpenDocument(const std::string& kind, const std::string& name);
+    bool CreateAnimator(const std::string& name);
+    void CloseDocument(int i, bool force);
+    bool SaveDocument(Document& d);
+    void ReloadDocument(Document& d);
+    void DrawTabs(Rectangle r);
+    void DrawDocument(Rectangle r);
+    float InspectDocument(Rectangle r, float y);
+    void ReleaseDocuments();
+    void RefreshAnimatorList();
+    std::vector<std::string> AnimatorOptions() const;  // "(none)" + files, for the animator property
+    void RefreshFlowLists();
+    std::vector<std::string> QuestOptions() const;
+    std::vector<std::string> DialogueOptions() const;
+    bool CreateFlow(const std::string& kind, const std::string& name);  // kind: quest | dialogue
+    void InitFlowDocument(Document& d);
+    void DrawFlowDoc(Rectangle r);
+    float InspectFlow(Rectangle r, float y);
+    void RefreshBehaviorList();
+    std::vector<std::string> BehaviorOptions() const;
+    bool CreateBehavior(const std::string& name);
+    void InitBehaviorDocument(Document& d);
+    void DrawBehaviorDoc(Rectangle r);
+    float InspectBehavior(Rectangle r, float y);
 
     // ---- core (editor.cpp) ----
     void Init();

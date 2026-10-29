@@ -55,6 +55,7 @@ rbs.class("item_base", {
     rbs.flash(0.35)
     if self.message ~= "" then rbs.message(self.message, 2) end
     rbs.add_stat("items")
+    rbs.flow.event("pickup", self.classname, self)  -- quests count pickups (scripts/quests.lua)
     if util.num(self.respawn, 0) > 0 then
       self.visible = false
       self.respawn_at = rbs.time() + self.respawn

@@ -1,0 +1,230 @@
+{
+  "root": "n1",
+  "blackboard": [],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "selector",
+      "label": "Soldier",
+      "children": [
+        "n2",
+        "n6",
+        "n9",
+        "n13",
+        "n16",
+        "n19"
+      ]
+    },
+    {
+      "id": "n2",
+      "type": "sequence",
+      "label": "Flee when hurt",
+      "children": [
+        "n3",
+        "n4"
+      ]
+    },
+    {
+      "id": "n3",
+      "type": "health",
+      "params": {
+        "op": "<",
+        "percent": 25
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cooldown",
+      "params": {
+        "seconds": 10
+      },
+      "children": [
+        "n5"
+      ]
+    },
+    {
+      "id": "n5",
+      "type": "flee_from",
+      "params": {
+        "seconds": 3
+      }
+    },
+    {
+      "id": "n6",
+      "type": "sequence",
+      "label": "Attack",
+      "children": [
+        "n7",
+        "n8"
+      ]
+    },
+    {
+      "id": "n7",
+      "type": "can_see"
+    },
+    {
+      "id": "n8",
+      "type": "attack"
+    },
+    {
+      "id": "n9",
+      "type": "sequence",
+      "label": "Chase",
+      "children": [
+        "n10",
+        "n11",
+        "n12"
+      ]
+    },
+    {
+      "id": "n10",
+      "type": "can_see"
+    },
+    {
+      "id": "n11",
+      "type": "move_to",
+      "params": {
+        "range": 96
+      }
+    },
+    {
+      "id": "n12",
+      "type": "face"
+    },
+    {
+      "id": "n13",
+      "type": "sequence",
+      "label": "Search",
+      "children": [
+        "n14",
+        "n15"
+      ]
+    },
+    {
+      "id": "n14",
+      "type": "lost_target",
+      "params": {
+        "seconds": 0.3
+      }
+    },
+    {
+      "id": "n15",
+      "type": "move_to",
+      "params": {
+        "target": "last_seen_pos",
+        "range": 64,
+        "timeout": 8
+      }
+    },
+    {
+      "id": "n16",
+      "type": "sequence",
+      "label": "Investigate noise",
+      "children": [
+        "n17",
+        "n18"
+      ]
+    },
+    {
+      "id": "n17",
+      "type": "heard",
+      "params": {
+        "seconds": 6
+      }
+    },
+    {
+      "id": "n18",
+      "type": "move_to",
+      "params": {
+        "target": "heard_pos",
+        "range": 96,
+        "timeout": 8
+      }
+    },
+    {
+      "id": "n19",
+      "type": "idle",
+      "label": "Stand"
+    }
+  ],
+  "editor": {
+    "layout": {
+      "n3": [
+        700,
+        0
+      ],
+      "n5": [
+        930,
+        74
+      ],
+      "n4": [
+        700,
+        74
+      ],
+      "n2": [
+        470,
+        37
+      ],
+      "n7": [
+        700,
+        148
+      ],
+      "n8": [
+        700,
+        222
+      ],
+      "n6": [
+        470,
+        185
+      ],
+      "n10": [
+        700,
+        296
+      ],
+      "n11": [
+        700,
+        370
+      ],
+      "n12": [
+        700,
+        444
+      ],
+      "n9": [
+        470,
+        370
+      ],
+      "n14": [
+        700,
+        518
+      ],
+      "n15": [
+        700,
+        592
+      ],
+      "n13": [
+        470,
+        555
+      ],
+      "n17": [
+        700,
+        666
+      ],
+      "n18": [
+        700,
+        740
+      ],
+      "n16": [
+        470,
+        703
+      ],
+      "n19": [
+        470,
+        814
+      ],
+      "n1": [
+        240,
+        444
+      ]
+    }
+  }
+}

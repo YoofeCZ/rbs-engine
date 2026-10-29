@@ -1,0 +1,201 @@
+{
+  "root": "n1",
+  "blackboard": [
+    {
+      "name": "alerted",
+      "type": "bool",
+      "value": "false"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "selector",
+      "label": "Ambusher",
+      "children": [
+        "n2",
+        "n12",
+        "n15"
+      ]
+    },
+    {
+      "id": "n2",
+      "type": "sequence",
+      "label": "Fight",
+      "children": [
+        "n3",
+        "n4",
+        "n5"
+      ]
+    },
+    {
+      "id": "n3",
+      "type": "can_see"
+    },
+    {
+      "id": "n4",
+      "type": "alert_neighbors",
+      "params": {
+        "radius": 600
+      }
+    },
+    {
+      "id": "n5",
+      "type": "selector",
+      "label": "Pick action",
+      "children": [
+        "n6",
+        "n7",
+        "n11"
+      ]
+    },
+    {
+      "id": "n6",
+      "type": "attack"
+    },
+    {
+      "id": "n7",
+      "type": "sequence",
+      "params": {
+        "recheck": false
+      },
+      "label": "Dodge",
+      "children": [
+        "n8",
+        "n9"
+      ]
+    },
+    {
+      "id": "n8",
+      "type": "chance",
+      "params": {
+        "percent": 35
+      }
+    },
+    {
+      "id": "n9",
+      "type": "cooldown",
+      "params": {
+        "seconds": 1.5
+      },
+      "children": [
+        "n10"
+      ]
+    },
+    {
+      "id": "n10",
+      "type": "strafe",
+      "params": {
+        "seconds": 0.8
+      }
+    },
+    {
+      "id": "n11",
+      "type": "move_to",
+      "params": {
+        "range": 160,
+        "speed": 1.1
+      }
+    },
+    {
+      "id": "n12",
+      "type": "sequence",
+      "label": "Hunt",
+      "children": [
+        "n13",
+        "n14"
+      ]
+    },
+    {
+      "id": "n13",
+      "type": "compare",
+      "params": {
+        "key": "alerted",
+        "op": "==",
+        "value": "true"
+      }
+    },
+    {
+      "id": "n14",
+      "type": "move_to",
+      "params": {
+        "target": "last_seen_pos",
+        "range": 80,
+        "timeout": 10
+      }
+    },
+    {
+      "id": "n15",
+      "type": "wait",
+      "params": {
+        "seconds": 1,
+        "extra": 2
+      },
+      "label": "Wait"
+    }
+  ],
+  "editor": {
+    "layout": {
+      "n3": [
+        700,
+        0
+      ],
+      "n4": [
+        700,
+        74
+      ],
+      "n6": [
+        930,
+        148
+      ],
+      "n8": [
+        1160,
+        222
+      ],
+      "n10": [
+        1390,
+        296
+      ],
+      "n9": [
+        1160,
+        296
+      ],
+      "n7": [
+        930,
+        259
+      ],
+      "n11": [
+        930,
+        370
+      ],
+      "n5": [
+        700,
+        259
+      ],
+      "n2": [
+        470,
+        111
+      ],
+      "n13": [
+        700,
+        444
+      ],
+      "n14": [
+        700,
+        518
+      ],
+      "n12": [
+        470,
+        481
+      ],
+      "n15": [
+        470,
+        592
+      ],
+      "n1": [
+        240,
+        395
+      ]
+    }
+  }
+}

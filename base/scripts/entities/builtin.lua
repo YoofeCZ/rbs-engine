@@ -114,7 +114,7 @@ rbs.class("mission_camera", {
 rbs.class("prop_model", {
   editor = { category = "props", color = {200, 160, 255}, mins = {-16, 0, -16}, maxs = {16, 32, 16},
              desc = "A 3D model placed in the level. Drag a model from the Project panel to create one.",
-             props = { model = "models/props/barrel.glb", scale = 1, solid = 1, anim = "" } },
+             props = { model = "models/props/barrel.glb", scale = 1, solid = 1, anim = "", animator = "" } },
   spawn = function(self)
     local p = self.props
     self.model = p.model or ""

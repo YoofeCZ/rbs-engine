@@ -3,7 +3,7 @@
 rbs.monster("monster_grunt", {
   editor = { color = {255, 130, 30}, mins = {-16, -24, -16}, maxs = {16, 32, 16},
              model = "models/monsters/grunt.glb", desc = "Soldier with a machine gun.",
-             props = { health = 60, speed = 140, attack_range = 1100, attack_delay = 0.3, attack_time = 0.9,
+             props = { animator = "animators/grunt.json", health = 60, speed = 140, attack_range = 1100, attack_delay = 0.3, attack_time = 0.9,
                        attack_type = "hitscan", bullets = 4, spread = 0.07, bullet_damage = 3,
                        attack_sound = "sounds/grunt_fire.wav" } },
   max_hp = 60,

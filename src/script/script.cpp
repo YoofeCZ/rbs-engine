@@ -1,5 +1,6 @@
 #include "script/script.h"
 #include "core/cvar.h"
+#include "core/input.h"
 #include "core/log.h"
 #include "core/project.h"
 #include "core/vfs.h"
@@ -1193,6 +1194,56 @@ static int L_set_key(lua_State* L) {
     return 0;
 }
 
+// rbs.persist_set(key, text) / rbs.persist_get(key): text that survives a map change
+// (quest progress); a new game starts empty
+static int L_persist_set(lua_State* L) {
+    RequireGame(L)->Persist()[luaL_checkstring(L, 1)] = luaL_checkstring(L, 2);
+    return 0;
+}
+
+static int L_persist_get(lua_State* L) {
+    auto& p = RequireGame(L)->Persist();
+    auto it = p.find(luaL_checkstring(L, 1));
+    if (it == p.end()) lua_pushnil(L);
+    else lua_pushstring(L, it->second.c_str());
+    return 1;
+}
+
+// rbs.freeze(on): dialogue mode - the player stops moving and shooting, the cursor is free
+static int L_freeze(lua_State* L) {
+    RequireGame(L)->SetUiFreeze(lua_toboolean(L, 1));
+    return 0;
+}
+
+// rbs.key_pressed(name) -> true on the frame the key (or mouse button, e.g. "mouse1") goes down
+static int L_key_pressed(lua_State* L) {
+    int k = input::KeyFromName(luaL_checkstring(L, 1));
+    if (k <= -100) lua_pushboolean(L, IsMouseButtonPressed(-100 - k));
+    else lua_pushboolean(L, k > 0 && IsKeyPressed(k));
+    return 1;
+}
+
+// rbs.mouse() -> x, y, left button pressed this frame
+static int L_mouse(lua_State* L) {
+    Vector2 m = GetMousePosition();
+    lua_pushnumber(L, m.x);
+    lua_pushnumber(L, m.y);
+    lua_pushboolean(L, IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
+    return 3;
+}
+
+// rbs.camera_set(pos, look_at, fov, rate): shows the game from here (dialogue shots), easing
+// there at `rate` (0 = at once); rbs.camera_clear(rate) gives the view back to the player
+static int L_camera_set(lua_State* L) {
+    RequireGame(L)->SetScriptCamera(ToVec(L, 1), ToVec(L, 2), (float)luaL_optnumber(L, 3, 60), (float)luaL_optnumber(L, 4, 6));
+    return 0;
+}
+
+static int L_camera_clear(lua_State* L) {
+    RequireGame(L)->ClearScriptCamera((float)luaL_optnumber(L, 1, 4));
+    return 0;
+}
+
 static int L_has_key(lua_State* L) {
     auto& keys = RequireGame(L)->PS().keys;
     auto it = keys.find(luaL_checkstring(L, 1));
@@ -1485,7 +1536,8 @@ static const luaL_Reg kApi[] = {
     {"draw_text", L_draw_text}, {"text_width", L_text_width}, {"draw_rect", L_draw_rect},
     {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {"list_files", L_list_files},
     {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {"anim_param", L_anim_param},
-    {"anim_trigger", L_anim_trigger}, {"anim_state", L_anim_state}, {nullptr, nullptr}};
+    {"anim_trigger", L_anim_trigger}, {"anim_state", L_anim_state}, {"persist_set", L_persist_set},
+    {"persist_get", L_persist_get}, {"camera_set", L_camera_set}, {"camera_clear", L_camera_clear}, {"freeze", L_freeze}, {"key_pressed", L_key_pressed}, {"mouse", L_mouse}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class
@@ -1789,6 +1841,22 @@ json Script::LuaJson(const char* field) const {
     return j;
 }
 
+json Script::CallJson(const char* name, const json& arg) {
+    if (!L) return nullptr;
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, name);
+    lua_remove(L, -2);
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 1);
+        return nullptr;
+    }
+    PushJson(L, arg);
+    json out;
+    if (CallFunction(1, name)) out = ToJson(L, -1);
+    lua_pop(L, 1);
+    return out;
+}
+
 bool Script::IsA(const std::string& cls, const std::string& base) const {
     std::string c = cls;
     for (int depth = 0; depth < 32 && !c.empty(); ++depth) {
@@ -1954,6 +2022,17 @@ void Script::FireWeapon(int index, Entity* owner) {
     std::string what = "weapon " + weapons[index].id + ":fire";
     CallFunction(2, what.c_str());
     lua_pop(L, 1);
+    // monsters with behavior trees hear the shot (rbs.noise in scripts/behavior.lua)
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, "noise");
+    if (lua_isfunction(L, -1)) {
+        PushEntity(L, owner);
+        lua_pushnumber(L, 1600);
+        CallFunction(2, "rbs.noise");
+        lua_pop(L, 2);  // the result and the rbs table
+    } else {
+        lua_pop(L, 2);
+    }
 }
 
 void Script::CallHook(const char* name) {
@@ -1993,6 +2072,20 @@ void Script::CallHookEntity(const char* name, Entity* e) {
         return;
     }
     PushEntity(L, e);
+    CallFunction(1, name);
+    lua_pop(L, 1);
+}
+
+void Script::CallHookString(const char* name, const std::string& text) {
+    if (!L) return;
+    lua_getglobal(L, "rbs");
+    lua_getfield(L, -1, name);
+    lua_remove(L, -2);
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+    lua_pushstring(L, text.c_str());
     CallFunction(1, name);
     lua_pop(L, 1);
 }

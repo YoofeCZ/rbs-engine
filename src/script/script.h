@@ -74,6 +74,7 @@ public:
     void CallHook(const char* name);
     void CallHookNumber(const char* name, float value);
     void CallHookEntity(const char* name, Entity* e);
+    void CallHookString(const char* name, const std::string& text);
     void FireTargetHandlers(const std::string& target, Entity* activator);
     void RunMapScript(const std::string& mapRelPath);
     bool DrawHud(int w, int h);
@@ -103,6 +104,9 @@ public:
     json WeaponData(const std::string& id) const;
     // rbs.<field> converted to JSON (null if missing), e.g. "weapon_fields"
     json LuaJson(const char* field) const;
+    // calls rbs.<name>(arg) with a JSON argument and returns its result as JSON (null on error);
+    // the editor uses it to run script code (dialogue previews)
+    json CallJson(const char* name, const json& arg);
     // true if `cls` is `base` or derives from it
     bool IsA(const std::string& cls, const std::string& base) const;
 

@@ -15,6 +15,8 @@ static Cvar* s_musicvolume = nullptr;
 
 Game::Game() {
     g_infinite_ammo = cvars::Register("g_infinite_ammo", "0", false, "weapons never run out of ammo");
+    cvars::Register("bt_debug", "0", false, "show the behavior tree state of nearby monsters");
+    cvars::Register("quest_debug", "0", false, "log quest and dialogue events and the nodes they enter");
     s_volume = cvars::Register("s_volume", "0.8", true, "sound effects volume");
     s_musicvolume = cvars::Register("s_musicvolume", "0.5", true, "music volume");
     m_fx.Init();
@@ -37,6 +39,7 @@ bool Game::LoadMap(const std::string& relPath, bool keepInventory) {
 
 bool Game::LoadMapData(const Map& map, const std::string& name, bool keepInventory, const std::string& relPath) {
     Carry carry = keepInventory ? MakeCarry() : Carry{};
+    if (!keepInventory) m_persist.clear();  // a new game forgets quest progress
     Unload();
     m_mapPath = relPath.empty() ? "maps/" + name + ".json" : relPath;
     m_carry = carry;
@@ -64,6 +67,7 @@ void Game::FinishLoading() {
     m_time = 0;
     m_stats = GameStats{};
     m_objectives.clear();
+    m_uiFreeze = false;
     m_message.clear();
     m_pendingMap.clear();
     m_levelEnded = m_restart = false;
@@ -449,9 +453,10 @@ void Game::Update(float dt, bool input) {
     m_time += dt;
     if (m_player && !m_player->dead) m_stats.time += dt;
 
-    UpdatePlayer(dt, input);
+    UpdatePlayer(dt, input && !m_uiFreeze);
     UpdateEntities(dt);
     CheckTriggers();
+    m_script.CallHookNumber("_update", dt);  // engine scripts (quests); a map script owns on_update
     m_script.CallHookNumber("on_update", dt);
     m_fx.Update(dt, m_world, m_map, m_lightmap, m_map.settings.gravity);
     CleanupRemoved();
@@ -883,6 +888,8 @@ void Game::Kill(Entity* e, Entity* attacker, float amount) {
     if (e->dead) return;
     e->dead = true;
     if (e->monster) m_stats.kills++;
+    // quests count kills (scripts/quests.lua); before EvDie, which may gib and remove the monster
+    if (e->monster) m_script.CallHookEntity("on_kill", e);
     EvDie(e, attacker, amount);
     if (e == m_player) PlayerDied();
 }

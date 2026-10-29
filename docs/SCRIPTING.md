@@ -123,7 +123,7 @@ Vlastní pole si můžeš do `self` ukládat libovolně (`self.state = "chase"`)
 
 ### Metody každé entity
 
-`self:remove()`, `self:sound(path, vol, pitch)`, `self:distance(other)`, `self:can_see(other)`, `self:walk(dir, speed)`, `self:face(pos, turn_speed, dt)`, `self:damage(amount, attacker, dir)`, `self:forward()`, `self:play(anim, loop, speed)`.
+`self:remove()`, `self:sound(path, vol, pitch)`, `self:distance(other)`, `self:can_see(other)`, `self:walk(dir, speed)`, `self:face(pos, turn_speed, dt)`, `self:damage(amount, attacker, dir)`, `self:forward()`, `self:play(anim, loop, speed)`. S [animátorem](ANIMATION.md) (`self.animator`) `play()` jen spustí trigger a klipy vybírá animátor; dál jsou `self:anim_param(name, value?)`, `self:anim_trigger(name)`, `self:anim_state()` a callback `anim_event(self, name)`.
 
 Vlastní pole a vlastnosti proto nepojmenovávej `sound`, `damage`, `remove`, `walk`, `face`, `forward`, `play`, `distance` ani `can_see` – `self.damage` by vrátilo metodu, ne tvoje číslo.
 

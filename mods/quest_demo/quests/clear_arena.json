@@ -1,0 +1,119 @@
+{
+  "editor": {
+    "layout": {
+      "a": [
+        40.0,
+        0.0
+      ],
+      "b": [
+        310.0,
+        0.0
+      ],
+      "c": [
+        580.0,
+        0.0
+      ],
+      "d": [
+        580.0,
+        90.0
+      ],
+      "e": [
+        1390.0,
+        0.0
+      ],
+      "j": [
+        850.0,
+        0.0
+      ],
+      "s": [
+        1120.0,
+        0.0
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "a",
+      "out": {
+        "next": [
+          "b"
+        ]
+      },
+      "type": "start"
+    },
+    {
+      "id": "b",
+      "out": {
+        "next": [
+          "c",
+          "d"
+        ]
+      },
+      "params": {
+        "seconds": 3,
+        "text": "The guard needs the arena cleared."
+      },
+      "type": "message"
+    },
+    {
+      "id": "c",
+      "out": {
+        "next": [
+          "j"
+        ]
+      },
+      "params": {
+        "class": "monster_grunt",
+        "count": 3,
+        "text": "Kill the grunts"
+      },
+      "type": "kill"
+    },
+    {
+      "id": "d",
+      "out": {
+        "next": [
+          "j"
+        ]
+      },
+      "params": {
+        "class": "item_rockets",
+        "count": 1,
+        "text": "Take the rocket ammo"
+      },
+      "type": "pickup"
+    },
+    {
+      "id": "j",
+      "out": {
+        "next": [
+          "s"
+        ]
+      },
+      "type": "join"
+    },
+    {
+      "id": "s",
+      "out": {
+        "next": [
+          "e"
+        ]
+      },
+      "params": {
+        "key": "arena_clear",
+        "value": "true"
+      },
+      "type": "set_var"
+    },
+    {
+      "id": "e",
+      "out": {},
+      "params": {
+        "result": "success"
+      },
+      "type": "end"
+    }
+  ],
+  "title": "Clear the arena",
+  "vars": []
+}

@@ -83,6 +83,7 @@ void Game::DrawEntities(const Camera3D& cam) {
 }
 
 void Game::DrawViewWeapon(float aspect) {
+    if (m_scriptCam.active) return;  // a dialogue shot: no weapon in the corner
     if (!r_drawviewmodel->i || !m_player || m_player->dead || m_ps.weapon < 0 || m_ps.weapon >= (int)m_script.weapons.size()) return;
     const WeaponDef& w = m_script.weapons[m_ps.weapon];
     if (w.model.empty()) return;

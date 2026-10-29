@@ -203,9 +203,15 @@ static bool ConditionsMet(const AnimatorInstance& a, const AnimTransitionDef& t)
     return true;
 }
 
-static bool UsesTrigger(const AnimTransitionDef& t) {
-    for (auto& c : t.conditions)
-        if (c.op == AnimOp::Trigger || c.op == AnimOp::True) return true;
+// "true" on a bool parameter stays satisfied, so only triggers (and "true" on a parameter
+// declared as a trigger) may restart the state a transition leads to
+static bool UsesTrigger(const AnimatorAsset& asset, const AnimTransitionDef& t) {
+    for (auto& c : t.conditions) {
+        if (c.op == AnimOp::Trigger) return true;
+        if (c.op != AnimOp::True) continue;
+        for (auto& p : asset.params)
+            if (p.name == c.param && p.type == "trigger") return true;
+    }
     return false;
 }
 
@@ -235,7 +241,7 @@ void Update(AnimatorInstance& a, const ModelAsset& m, float dt, std::vector<cons
         for (auto& t : asset->transitions) {
             if (pass == 0 ? t.from != -1 : t.from != a.state) continue;
             // a state restarts itself only from Any State, on a trigger (hit again while in pain)
-            if (t.to == a.state && (pass == 1 || !UsesTrigger(t))) continue;
+            if (t.to == a.state && (pass == 1 || !UsesTrigger(*asset, t))) continue;
             if (t.exitTime >= 0 && a.norm < t.exitTime) continue;
             if (!ConditionsMet(a, t)) continue;
             for (auto& c : t.conditions) a.triggers.erase(c.param);

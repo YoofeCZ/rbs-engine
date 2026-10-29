@@ -1,0 +1,5 @@
+{
+  "title": "Quest and dialogue demo",
+  "description": "An arena with a guard to talk to (dialogues/guard.json), who gives the quest quests/clear_arena.json: kill three grunts and take the rocket ammo.",
+  "author": "RBS Engine"
+}

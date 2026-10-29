@@ -3,7 +3,7 @@
 rbs.monster("monster_fiend", {
   editor = { color = {200, 30, 30}, mins = {-16, -24, -16}, maxs = {16, 28, 16},
              model = "models/monsters/fiend.glb", desc = "Leaping demon, melee + fireballs.",
-             props = { health = 90, ai = "melee", speed = 230, attack_range = 700, keep_distance = 40,
+             props = { animator = "animators/fiend.json", health = 90, ai = "melee", speed = 230, attack_range = 700, keep_distance = 40,
                        attack_cooldown = 1.1, attack_delay = 0.25, attack_time = 0.6,
                        attack_type = "melee+projectile", melee_damage = 15, leap = true,
                        projectile = "fireball", projectile_speed = 700, projectile_damage = 15,

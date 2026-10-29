@@ -31,6 +31,7 @@ Editor::Editor(App* app) : m_app(app), m(new Impl) {
 }
 
 Editor::~Editor() {
+    m->ReleaseDocuments();
     for (auto& v : m->views)
         if (v.rt.id) UnloadRenderTexture(v.rt);
     delete m;
@@ -42,6 +43,7 @@ void Editor::Open(const std::string& mapPath) {
 }
 
 void Editor::Import(const std::string& path) { m->ImportPaths({path}, false); }
+
 
 void Editor::OnReturnFromPlay() {
     m->RefreshClasses();
@@ -62,8 +64,10 @@ void Editor::Update(float dt, bool consoleHasFocus) {
     m->UpdateBake();
     m->HandleDroppedFiles();
     bool keyboardFree = !consoleHasFocus && !ui::KeyboardCaptured() && m->dialog.empty();
-    if (keyboardFree) m->HandleShortcuts();
-    if (m->dialog.empty()) m->UpdateViews(keyboardFree);
+    if (keyboardFree && m->activeDoc < 0) m->HandleShortcuts();
+    if (m->dialog.empty() && m->activeDoc < 0) m->UpdateViews(keyboardFree);
+    if (keyboardFree && m->activeDoc >= 0 && IsKeyPressed(KEY_S) && (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER)))
+        m->SaveDocument(*m->Doc());
     if (m->meshDirty) {
         m->world.Build(m->map, nullptr, true);
         m->meshDirty = false;
@@ -76,9 +80,15 @@ void Editor::Draw(int w, int h) {
     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
     ClearBackground(ui::theme.bg);
     const float tb = 36, sb = 24, left = 250, right = 340, bottom = 230;
-    Rectangle viewArea{left, tb, w - left - right, h - tb - sb - bottom};
-    m->LayoutViews(viewArea);
-    m->DrawViews();
+    const float tabH = 26;
+    Rectangle viewArea{left, tb + tabH, w - left - right, h - tb - sb - bottom - tabH};
+    if (m->activeDoc < 0) {
+        m->LayoutViews(viewArea);
+        m->DrawViews();
+    } else {
+        m->DrawDocument(viewArea);
+    }
+    m->DrawTabs({left, tb, w - left - right, tabH});
     m->DrawToolbar({0, 0, (float)w, tb});
     m->DrawHierarchy({0, tb, left, h - tb - sb});
     m->DrawInspector({w - right, tb, right, h - tb - sb});
@@ -145,6 +155,12 @@ void Editor::Impl::RefreshClasses() {
     for (auto& c : components) componentNames.push_back(c.name);
     weaponIds.clear();
     for (auto& w : script.weapons) weaponIds.push_back(w.id);
+    btLibrary = script.LuaJson("bt_library");
+    if (!btLibrary.is_object()) btLibrary = json::object();
+    flowLibrary = script.LuaJson("flow_library");
+    if (!flowLibrary.is_object()) flowLibrary = json::object();
+    dialogueDefaults = script.LuaJson("dialogue_defaults");
+    if (!dialogueDefaults.is_object()) dialogueDefaults = json::object();
     weaponFields = script.LuaJson("weapon_fields");
     if (!weaponFields.is_object()) weaponFields = json::object();
 }
@@ -166,6 +182,9 @@ void Editor::Impl::RefreshLists(bool force) {
     scriptList = vfs::List("scripts", ".lua", true);
     mapList = vfs::List("maps", ".json", false);
     prefabList = vfs::List("prefabs", ".json", true);
+    RefreshAnimatorList();
+    RefreshBehaviorList();
+    RefreshFlowLists();
 }
 
 // ---------------------------------------------------------------------------------

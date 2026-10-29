@@ -15,6 +15,8 @@ struct LaunchOptions {
     std::string editorMap;
     std::string screenshot;  // automated capture (testing / docs)
     int screenshotFrames = 90;
+    bool visible = false;  // --screenshot normally implies hidden
+    bool hidden = false;  // no visible window and no sound (automated runs must not disturb the desktop)
     std::string exec;        // console commands executed after the map loaded
     int width = 1600, height = 900;
     bool fullscreen = false;
@@ -50,6 +52,7 @@ private:
     Console m_console;
     LaunchOptions m_opt;
     bool m_quit = false;
+    bool m_hidden = false;  // hidden window, muted (see LaunchOptions::hidden)
     bool m_paused = false;
     bool m_fromEditor = false;
     int m_menuSel = 0;

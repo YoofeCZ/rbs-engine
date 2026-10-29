@@ -7,12 +7,15 @@
 -- See docs/AI.md.
 --
 -- States: idle (waiting or patrolling) -> chase <-> attack, pain, flee, dead.
--- Animations used from the model: idle, walk, attack, pain, death.
+-- Animations used from the model: idle, walk, attack, pain, death. With an `animator` the
+-- AI only fires the triggers "attack" and "pain" (play() does that); walking follows the
+-- automatic `speed` parameter and death the `dead` parameter.
 
 local TUNABLES = {
   health = 60,
   -- behaviour
   ai = "chase",
+  behavior = "",
   speed = 150,
   turn_speed = 540,
   sight_range = 1800,
@@ -45,18 +48,20 @@ local TUNABLES = {
   pain_sound = "sounds/grunt_pain.wav",
   death_sound = "sounds/grunt_death.wav",
   model = "",
+  animator = "",
   scale = 1,
   tint = {255, 255, 255},
 }
 
 local ENUMS = {
-  ai = {"chase", "ranged", "melee", "turret", "patrol"},
+  ai = {"chase", "ranged", "melee", "turret", "patrol", "behavior"},
   attack_type = {"hitscan", "projectile", "melee", "melee+projectile", "none", "custom"},
   projectile = {"fireball", "plasma_bolt", "rocket"},
 }
 
 local HELP = {
-  ai = "chase: runs at you and attacks | ranged: keeps its distance and strafes | melee: closes in for hand-to-hand | turret: never moves | patrol: walks patrol_path until it sees you",
+  ai = "chase: runs at you and attacks | ranged: keeps its distance and strafes | melee: closes in for hand-to-hand | turret: never moves | patrol: walks patrol_path until it sees you | behavior: follows the behavior tree in `behavior`",
+  behavior = "behavior tree asset (behaviors/<name>.json) made in Project > Behaviors; setting it switches ai to behavior",
   speed = "walking speed (units per second, the player runs at 320)",
   turn_speed = "degrees per second",
   sight_range = "how far it notices the player",
@@ -82,6 +87,7 @@ local HELP = {
   pain_chance = "0..1 chance to flinch when hit",
   gib_health = "below this health the body bursts into gibs",
   model = "glTF model with idle, walk, attack, pain and death animations",
+  animator = "animator asset (animators/<name>.json) that picks the animations; empty = the model's idle/walk/attack/pain/death clips are played directly",
   scale = "model size multiplier",
   tint = "model colour multiplier (255 255 255 = unchanged)",
 }
@@ -130,6 +136,8 @@ local monster_base = {
     self.next_attack = 0
     self.next_look = math.random() * 0.3
     self.avoid_until = 0
+    if self.behavior ~= "" then self.ai = "behavior" end
+    if self.ai == "behavior" then rbs.bt.init(self) end
     self:play("idle", true)
     rbs.add_stat("monsters")
   end,
@@ -141,6 +149,10 @@ local monster_base = {
   end,
 
   wake = function(self, enemy)
+    if self.ai == "behavior" then
+      rbs.bt.alert(self, enemy)
+      return
+    end
     if self.state ~= "idle" then return end
     self.enemy = enemy
     self.state = "chase"
@@ -160,8 +172,44 @@ local monster_base = {
     return self.attack_range
   end,
 
+  -- behavior-tree AI: the tree decides everything except the flinch and the attack swing
+  behavior_update = function(self, dt)
+    local p = rbs.player()
+    local t = rbs.time()
+    if self.state == "pain" then
+      self:walk(vec(0, 0, 0), 0)
+      if t > self.state_until then self.state = "idle" end
+      return
+    end
+    if self.state == "attack" then
+      if p and not p.dead then self:face(p.pos, self.turn_speed, dt) end
+      self:walk(vec(0, 0, 0), 0)
+      if not self.attacked and t > self.attack_at then
+        self.attacked = true
+        if p and not p.dead then self:attack(p) end
+      end
+      if t > self.state_until then
+        self.state = "idle"
+        self.next_attack = t + self.attack_cooldown * (0.7 + math.random() * 0.6)
+      end
+      return
+    end
+    rbs.bt.update(self, dt)
+  end,
+
+  -- starts the attack swing (animation, wind-up, then attack() fires); used by think() and the tree's Attack node
+  start_attack = function(self)
+    local t = rbs.time()
+    self.state = "attack"
+    self.attacked = false
+    self.attack_at = t + self.attack_delay
+    self.state_until = t + self.attack_time
+    self:play("attack", false)
+  end,
+
   update = function(self, dt)
     if self.dead then return end
+    if self.ai == "behavior" then return self:behavior_update(dt) end
     local p = rbs.player()
     local t = rbs.time()
 
@@ -222,11 +270,7 @@ local monster_base = {
       return
     end
     if visible and d < self:reach() and t > self.next_attack then
-      self.state = "attack"
-      self.attacked = false
-      self.attack_at = t + self.attack_delay
-      self.state_until = t + self.attack_time
-      self:play("attack", false)
+      self:start_attack()
       return
     end
     if self.ai == "turret" then

@@ -1,0 +1,114 @@
+{
+  "default": "idle",
+  "parameters": [
+    {
+      "name": "pain",
+      "type": "trigger"
+    },
+    {
+      "name": "attack",
+      "type": "trigger"
+    }
+  ],
+  "states": [
+    {
+      "name": "idle",
+      "clip": "idle",
+      "loop": true
+    },
+    {
+      "name": "walk",
+      "clip": "walk",
+      "loop": true,
+      "speed_param": "speed",
+      "speed_ref": 150
+    },
+    {
+      "name": "attack",
+      "clip": "attack",
+      "loop": false
+    },
+    {
+      "name": "pain",
+      "clip": "pain",
+      "loop": false
+    },
+    {
+      "name": "death",
+      "clip": "death",
+      "loop": false
+    }
+  ],
+  "transitions": [
+    {
+      "from": "*",
+      "to": "death",
+      "duration": 0.1,
+      "conditions": [
+        {
+          "param": "dead",
+          "op": ">",
+          "value": 0.5
+        }
+      ]
+    },
+    {
+      "from": "*",
+      "to": "pain",
+      "duration": 0.05,
+      "conditions": [
+        {
+          "param": "pain",
+          "op": "trigger"
+        }
+      ]
+    },
+    {
+      "from": "*",
+      "to": "attack",
+      "duration": 0.08,
+      "conditions": [
+        {
+          "param": "attack",
+          "op": "trigger"
+        }
+      ]
+    },
+    {
+      "from": "idle",
+      "to": "walk",
+      "duration": 0.15,
+      "conditions": [
+        {
+          "param": "speed",
+          "op": ">",
+          "value": 12
+        }
+      ]
+    },
+    {
+      "from": "walk",
+      "to": "idle",
+      "duration": 0.2,
+      "conditions": [
+        {
+          "param": "speed",
+          "op": "<",
+          "value": 12
+        }
+      ]
+    },
+    {
+      "from": "attack",
+      "to": "idle",
+      "duration": 0.15,
+      "exit_time": 1
+    },
+    {
+      "from": "pain",
+      "to": "idle",
+      "duration": 0.1,
+      "exit_time": 1
+    }
+  ]
+}

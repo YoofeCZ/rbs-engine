@@ -1,0 +1,299 @@
+{
+  "editor": {
+    "layout": {
+      "a": [
+        40.0,
+        0.0
+      ],
+      "acc": [
+        1390.0,
+        0.0
+      ],
+      "acc2": [
+        1660.0,
+        0.0
+      ],
+      "c1": [
+        1120.0,
+        180.0
+      ],
+      "end1": [
+        1120.0,
+        0.0
+      ],
+      "end2": [
+        1120.0,
+        90.0
+      ],
+      "end3": [
+        1930.0,
+        0.0
+      ],
+      "end4": [
+        1660.0,
+        90.0
+      ],
+      "gift": [
+        850.0,
+        0.0
+      ],
+      "intro": [
+        850.0,
+        180.0
+      ],
+      "met": [
+        1390.0,
+        180.0
+      ],
+      "q1": [
+        310.0,
+        0.0
+      ],
+      "q2": [
+        580.0,
+        0.0
+      ],
+      "ref": [
+        1390.0,
+        90.0
+      ],
+      "still": [
+        850.0,
+        90.0
+      ],
+      "thanks": [
+        580.0,
+        94.0
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "a",
+      "out": {
+        "next": [
+          "q1"
+        ]
+      },
+      "type": "start"
+    },
+    {
+      "id": "q1",
+      "out": {
+        "no": [
+          "q2"
+        ],
+        "yes": [
+          "thanks"
+        ]
+      },
+      "params": {
+        "check": "quest done",
+        "key": "clear_arena"
+      },
+      "type": "branch"
+    },
+    {
+      "id": "q2",
+      "out": {
+        "no": [
+          "intro"
+        ],
+        "yes": [
+          "still"
+        ]
+      },
+      "params": {
+        "check": "quest active",
+        "key": "clear_arena"
+      },
+      "type": "branch"
+    },
+    {
+      "id": "thanks",
+      "out": {
+        "next": [
+          "gift"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "You did it! The arena is safe. Take this.",
+        "shot": "wide",
+        "motion": "pull-out"
+      },
+      "type": "say"
+    },
+    {
+      "id": "gift",
+      "out": {
+        "next": [
+          "end1"
+        ]
+      },
+      "params": {
+        "amount": 50,
+        "what": "health"
+      },
+      "type": "give"
+    },
+    {
+      "id": "end1",
+      "out": {},
+      "type": "end"
+    },
+    {
+      "id": "still",
+      "out": {
+        "next": [
+          "end2"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Still some grunts around. And grab that rocket ammo."
+      },
+      "type": "say"
+    },
+    {
+      "id": "end2",
+      "out": {},
+      "type": "end"
+    },
+    {
+      "id": "intro",
+      "out": {
+        "next": [
+          "c1"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Halt! This arena is overrun with grunts.",
+        "shot": "close-up",
+        "motion": "push-in"
+      },
+      "type": "say"
+    },
+    {
+      "id": "c1",
+      "options": [
+        {
+          "text": "I'll deal with them."
+        },
+        {
+          "text": "Not my problem."
+        },
+        {
+          "require": "asked_who_never",
+          "text": "Who are you?"
+        }
+      ],
+      "out": {
+        "o1": [
+          "acc"
+        ],
+        "o2": [
+          "ref"
+        ],
+        "o3": [
+          "met"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Will you help me clear it out?",
+        "shot": "medium",
+        "motion": "none"
+      },
+      "type": "choice"
+    },
+    {
+      "id": "acc",
+      "out": {
+        "next": [
+          "acc2"
+        ]
+      },
+      "params": {
+        "quest": "clear_arena"
+      },
+      "type": "start_quest"
+    },
+    {
+      "id": "acc2",
+      "out": {
+        "next": [
+          "end3"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Good luck out there.",
+        "shot": "over-shoulder",
+        "motion": "none",
+        "animation": "attack"
+      },
+      "type": "say"
+    },
+    {
+      "id": "end3",
+      "out": {},
+      "type": "end"
+    },
+    {
+      "id": "ref",
+      "out": {
+        "next": [
+          "end4"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Coward.",
+        "shot": "profile",
+        "motion": "orbit"
+      },
+      "type": "say"
+    },
+    {
+      "id": "end4",
+      "out": {},
+      "type": "end"
+    },
+    {
+      "id": "met",
+      "out": {
+        "next": [
+          "c1"
+        ]
+      },
+      "params": {
+        "speaker": "Guard",
+        "text": "Nobody important."
+      },
+      "type": "say"
+    }
+  ],
+  "title": "Guard",
+  "vars": [],
+  "speakers": [
+    {
+      "id": "Guard",
+      "name": "Guard",
+      "entity": "guard",
+      "color": [
+        255,
+        214,
+        120
+      ],
+      "voice": "sounds/grunt_sight.wav",
+      "pitch": 1.4
+    }
+  ],
+  "style": {
+    "text_speed": 38,
+    "default_shot": "medium",
+    "default_motion": "push-in"
+  }
+}

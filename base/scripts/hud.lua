@@ -22,6 +22,9 @@ local function face_image(p)
 end
 
 function rbs.draw_hud(w, h)
+  if rbs.draw_bt_debug then rbs.draw_bt_debug(w, h) end
+  if rbs.draw_story then rbs.draw_story(w, h) end
+  if rbs.flow and rbs.flow.cinematic then return end  -- a dialogue shot: no health / ammo
   local p = rbs.player()
   if not p then return end
   local info = rbs.hud_info()

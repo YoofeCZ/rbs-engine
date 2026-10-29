@@ -33,6 +33,8 @@ int main(int argc, char** argv) {
             opt.editor = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') opt.editorMap = next();
         } else if (a == "--screenshot") opt.screenshot = next();
+        else if (a == "--hidden") opt.hidden = true;
+        else if (a == "--visible") opt.visible = true;
         else if (a == "--frames") opt.screenshotFrames = atoi(next().c_str());
         else if (a == "--exec") opt.exec = next();
         else if (a == "--width") opt.width = atoi(next().c_str());
@@ -40,7 +42,8 @@ int main(int argc, char** argv) {
         else if (a == "--fullscreen") opt.fullscreen = true;
         else if (a == "--help" || a == "-h") {
             printf("RBS Engine %s\n  --map <name>  --editor [map]  --mod <name>  --width W --height H  --fullscreen\n"
-                   "  --screenshot <file.png> [--frames N] [--exec \"commands\"]\n", RBS_VERSION);
+                   "  --screenshot <file.png> [--frames N] [--exec \"commands\"]\n"
+                   "  --hidden / --visible   automated runs (--screenshot) use a hidden window and no sound unless --visible\n", RBS_VERSION);
             return 0;
         }
     }

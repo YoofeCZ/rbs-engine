@@ -274,6 +274,27 @@ void Editor::Impl::DropAsset(int vi, Vector2 mouse, const std::string& type, con
         InsertPrefab(payload, PlacementPoint(vi, mouse, nullptr));
         return;
     }
+    if (type == "animator" || type == "behavior" || type == "quest" || type == "dialogue") {
+        int target = -1;
+        if (v.kind == ViewKind::Persp) {
+            Ray ray = GetScreenToWorldRayEx({mouse.x - v.rect.x, mouse.y - v.rect.y}, v.Camera(), (int)v.rect.width, (int)v.rect.height);
+            int b, f, e;
+            if (PickRay(ray, &b, &f, &e, nullptr)) target = e >= 0 ? e : (b >= 0 ? map.brushes[b].entity : -1);
+        } else if (selEnts.size() == 1) {
+            target = *selEnts.begin();
+        }
+        if (target >= 0) {
+            Snapshot();
+            map.entities[target].props[type] = payload;
+            ClearSelection();
+            selEnts.insert(target);
+            Changed(false);
+            SetStatus(type + " " + payload + " set on " + map.entities[target].classname);
+        } else {
+            SetStatus("Drop " + type + "s onto an entity in the 3D view");
+        }
+        return;
+    }
     if (type == "component") {
         int target = -1;
         if (v.kind == ViewKind::Persp) {
