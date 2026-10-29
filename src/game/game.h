@@ -184,6 +184,7 @@ private:
     void EvPain(Entity* e, float amount, Entity* attacker);
     void EvDie(Entity* e, Entity* attacker, float amount);
     void EvBlocked(Entity* e, Entity* other);
+    void EvAnimEvent(Entity* e, const std::string& name);  // Lua only (anim_event callback)
     void CreateComponent(Entity* e, Component& c);
     void DestroyEntityScripts(Entity* e);
 

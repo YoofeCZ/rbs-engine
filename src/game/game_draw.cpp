@@ -1,5 +1,6 @@
 // RBS Engine - game rendering: world, entities, view weapon, HUD.
 #include "core/cvar.h"
+#include "game/animator.h"
 #include "game/game.h"
 #include "ui/fonts.h"
 #include "ui/lang.h"
@@ -28,7 +29,10 @@ void Game::DrawEntities(const Camera3D& cam) {
         if (e->removed || !e->visible || e == m_player || e->model.empty() || e->mapIndex >= 0) continue;
         UpdateEntityLight(e);
         ModelAsset& m = assets::GetModel(e->model);
-        if (!e->anim.empty() && m.animCount > 0) {
+        if (e->animator && m.animCount > 0) {
+            static anim::Pose pose;
+            if (animator::BuildPose(*e->animator, m, pose)) anim::Apply(m, pose);
+        } else if (!e->anim.empty() && m.animCount > 0) {
             int ai = m.FindAnim(e->anim);
             if (ai >= 0) {
                 int frame = (int)(e->animTime * 60.0f);

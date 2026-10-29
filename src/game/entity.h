@@ -8,6 +8,8 @@
 
 namespace rbs {
 
+struct AnimatorInstance;
+
 enum class MoveType { None, Walk, Fly, Toss, Bounce, Push, Noclip };
 enum class SolidType { Not, Trigger, BBox, Corpse };  // Corpse: hit by hitscan only
 
@@ -68,6 +70,7 @@ struct Entity {
     float animSpeed = 1.0f;
     bool animLoop = true;
     bool animDone = false;
+    std::shared_ptr<AnimatorInstance> animator;  // state machine that picks `anim` (animators/*.json)
     float flash = 0;         // white hit flash 0..1
     float spin = 0;          // degrees per second (pickups)
     float bobAmount = 0;     // vertical bobbing (pickups)

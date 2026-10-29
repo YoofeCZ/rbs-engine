@@ -1,5 +1,6 @@
 #include "game/game.h"
 #include "core/cvar.h"
+#include "game/animator.h"
 #include "core/log.h"
 #include "core/vfs.h"
 #include "script/plugins.h"
@@ -67,6 +68,7 @@ void Game::FinishLoading() {
     m_pendingMap.clear();
     m_levelEnded = m_restart = false;
     plugins::SetGame(this);
+    animator::ClearCache();  // pick up animators edited since the last map
     if (!m_script.Init(this)) LOG_ERR("Script initialisation failed - the game may not work correctly");
     SpawnMapEntities();
     SpawnPlayer();
@@ -241,6 +243,11 @@ Entity* Game::Spawn(const std::string& classname, Vector3 pos, const json& props
     }
     for (auto& c : e->components) CreateComponent(e, c);
     EvSpawn(e);
+    // any entity with a model can get an animator through its properties
+    if (!e->animator && !e->removed) {
+        auto it = e->props.find("animator");
+        if (it != e->props.end() && it->is_string() && !it->get<std::string>().empty()) e->animator = animator::Create(it->get<std::string>());
+    }
     if (mapIndex >= 0) SetBrushOffset(e, e->moveOffset);
     return e;
 }
@@ -411,6 +418,14 @@ void Game::EvDie(Entity* e, Entity* attacker, float amount) {
     }
 }
 
+void Game::EvAnimEvent(Entity* e, const std::string& name) {
+    if (e->nativeClass < 0) m_script.OnAnimEvent(e, name);
+    for (size_t i = 0; i < e->components.size() && !e->removed; ++i) {
+        Component& c = e->components[i];
+        if (c.native < 0) m_script.CompAnimEvent(e, c, name);
+    }
+}
+
 void Game::EvBlocked(Entity* e, Entity* other) {
     if (e->nativeClass >= 0) plugins::Blocked(e->nativeClass, e->nativeData, e, other);
     else m_script.OnBlocked(e, other);
@@ -495,6 +510,28 @@ void Game::CleanupRemoved() {
 }
 
 void Game::AnimateEntity(Entity* e, float dt) {
+    if (e->animator) {
+        if (e->model.empty()) return;
+        std::shared_ptr<AnimatorInstance> keep = e->animator;  // event handlers may replace it
+        AnimatorInstance& a = *keep;
+        a.params["speed"] = sqrtf(e->vel.x * e->vel.x + e->vel.z * e->vel.z);
+        a.params["vertical_speed"] = e->vel.y;
+        a.params["on_ground"] = e->onGround ? 1.0f : 0.0f;
+        a.params["dead"] = e->dead ? 1.0f : 0.0f;
+        a.params["health"] = e->health;
+        std::vector<const AnimEventDef*> fired;
+        animator::Update(a, assets::GetModel(e->model), dt, fired);
+        // mirror the state for scripts that read self.anim / self.anim_done
+        if (const AnimStateDef* s = animator::CurrentState(a)) {
+            e->anim = s->blend.empty() ? s->clip : s->blend[0].clip;
+            e->animDone = !s->loop && a.norm >= 1.0f;
+        }
+        for (const AnimEventDef* ev : fired) {
+            if (!ev->sound.empty()) PlaySound(ev->sound, e->Center(), ev->volume);
+            if (!ev->name.empty() && !e->removed) EvAnimEvent(e, ev->name);
+        }
+        return;
+    }
     if (e->model.empty() || e->anim.empty()) return;
     ModelAsset& m = assets::GetModel(e->model);
     int ai = m.FindAnim(e->anim);

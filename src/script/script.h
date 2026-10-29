@@ -66,6 +66,7 @@ public:
     void OnPain(Entity* e, float amount, Entity* attacker);
     void OnDie(Entity* e, Entity* attacker, float amount);
     void OnBlocked(Entity* e, Entity* other);
+    void OnAnimEvent(Entity* e, const std::string& name);  // animator event -> anim_event(self, name)
     bool HasClass(const std::string& name) const;
 
     // weapons / game hooks
@@ -90,6 +91,7 @@ public:
     void CompPain(Entity* e, Component& c, float amount, Entity* attacker);
     void CompDie(Entity* e, Component& c, Entity* attacker, float amount);
     void CompBlocked(Entity* e, Component& c, Entity* other);
+    void CompAnimEvent(Entity* e, Component& c, const std::string& name);
 
     std::vector<WeaponDef> weapons;
     std::vector<ClassInfo> classes;

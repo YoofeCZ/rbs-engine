@@ -3,6 +3,7 @@
 #include "core/log.h"
 #include "core/project.h"
 #include "core/vfs.h"
+#include "game/animator.h"
 #include "game/game.h"
 #include "render/assets.h"
 #include "ui/fonts.h"
@@ -82,6 +83,11 @@ function Entity:face(pos, speed, dt) rbs.face(self, pos, speed or 360, dt or 1) 
 function Entity:damage(amount, attacker, dir) rbs.damage(self, amount, attacker, dir) end
 function Entity:forward() return vec.from_yaw(self.yaw) end
 function Entity:play(anim, loop, speed)
+  local animator = self.animator
+  if animator and animator ~= "" then
+    rbs.anim_trigger(self, anim)  -- with an animator, play() fires a trigger and the animator picks clips
+    return
+  end
   if self.anim ~= anim then
     self.anim = anim
     self.anim_time = 0
@@ -89,6 +95,10 @@ function Entity:play(anim, loop, speed)
   if loop ~= nil then self.anim_loop = loop end
   self.anim_speed = speed or 1
 end
+
+function Entity:anim_param(name, value) return rbs.anim_param(self, name, value) end
+function Entity:anim_trigger(name) rbs.anim_trigger(self, name) end
+function Entity:anim_state() return rbs.anim_state(self) end
 
 function rbs.class(name, def)
   def = def or {}
@@ -400,7 +410,7 @@ enum Prop {
     P_ANIMSPEED, P_ANIMLOOP, P_ANIMDONE, P_ANIMTIME, P_MOVETYPE, P_SOLID, P_ONGROUND, P_OWNER, P_TAKEDAMAGE, P_MONSTER,
     P_DEAD, P_TARGETNAME, P_TARGET, P_PROPS, P_LIGHTCOLOR, P_LIGHTRADIUS, P_SPIN, P_BOB, P_FLASH, P_GRAVITY, P_BOUNCE,
     P_FRICTION, P_LOOPSOUND, P_LOOPVOLUME, P_LOOPRADIUS, P_REMOVED, P_CENTER, P_ABSMIN, P_ABSMAX, P_OFFSET, P_NEXTTHINK,
-    P_BMINS, P_BMAXS, P_BRUSH, P_BLOCKED, P_LIFETIME
+    P_BMINS, P_BMAXS, P_BRUSH, P_BLOCKED, P_LIFETIME, P_ANIMATOR
 };
 
 static const std::unordered_map<std::string, Prop>& PropMap() {
@@ -418,7 +428,7 @@ static const std::unordered_map<std::string, Prop>& PropMap() {
         {"loop_sound", P_LOOPSOUND}, {"loop_volume", P_LOOPVOLUME}, {"loop_radius", P_LOOPRADIUS},
         {"removed", P_REMOVED}, {"center", P_CENTER}, {"absmin", P_ABSMIN}, {"absmax", P_ABSMAX},
         {"offset", P_OFFSET}, {"next_think", P_NEXTTHINK}, {"bmins", P_BMINS}, {"bmaxs", P_BMAXS}, {"is_brush", P_BRUSH},
-        {"blocked", P_BLOCKED}, {"lifetime", P_LIFETIME}};
+        {"blocked", P_BLOCKED}, {"lifetime", P_LIFETIME}, {"animator", P_ANIMATOR}};
     return m;
 }
 
@@ -560,6 +570,7 @@ static int EntityIndex(lua_State* L) {
                 case P_BRUSH: lua_pushboolean(L, e->mapIndex >= 0); break;
                 case P_BLOCKED: lua_pushboolean(L, e->blocked); break;
                 case P_LIFETIME: lua_pushnumber(L, e->lifetime); break;
+                case P_ANIMATOR: lua_pushstring(L, e->animator ? e->animator->path.c_str() : ""); break;
             }
             return 1;
         }
@@ -665,6 +676,12 @@ static int EntityNewIndex(lua_State* L) {
                 case P_OFFSET: s->game->SetBrushOffset(e, ToVec(L, 3, e->moveOffset)); break;
                 case P_NEXTTHINK: e->nextThink = (float)luaL_checknumber(L, 3); break;
                 case P_LIFETIME: e->lifetime = (float)luaL_checknumber(L, 3); break;
+                case P_ANIMATOR: {
+                    std::string path = luaL_optstring(L, 3, "");
+                    if (path.empty()) e->animator.reset();
+                    else if (!e->animator || e->animator->path != path) e->animator = animator::Create(path);
+                    break;
+                }
                 default: return luaL_error(L, "entity field '%s' is read-only", key);
             }
             return 0;
@@ -1415,6 +1432,42 @@ static int L_tr(lua_State* L) {
     return 1;
 }
 
+// rbs.anim_param(ent, name [, value]) -> value of an animator parameter (bools are 0 / 1)
+static int L_anim_param(lua_State* L) {
+    Entity* e = CheckEntity(L, 1);
+    const char* name = luaL_checkstring(L, 2);
+    if (!e->animator) {
+        lua_pushnil(L);
+        return 1;
+    }
+    if (!lua_isnoneornil(L, 3))
+        e->animator->params[name] = lua_isboolean(L, 3) ? (lua_toboolean(L, 3) ? 1.0f : 0.0f) : (float)luaL_checknumber(L, 3);
+    auto it = e->animator->params.find(name);
+    lua_pushnumber(L, it == e->animator->params.end() ? 0 : it->second);
+    return 1;
+}
+
+// rbs.anim_trigger(ent, name): fires a trigger parameter until the animator's next update
+static int L_anim_trigger(lua_State* L) {
+    Entity* e = CheckEntity(L, 1);
+    const char* name = luaL_checkstring(L, 2);
+    if (e->animator) e->animator->triggers.insert(name);
+    return 0;
+}
+
+// rbs.anim_state(ent) -> state name, normalized time (nil without an animator)
+static int L_anim_state(lua_State* L) {
+    Entity* e = CheckEntity(L, 1);
+    const AnimStateDef* s = e->animator ? animator::CurrentState(*e->animator) : nullptr;
+    if (!s) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushstring(L, s->name.c_str());
+    lua_pushnumber(L, e->animator->norm);
+    return 2;
+}
+
 static const luaL_Reg kApi[] = {
     {"log", L_log}, {"_loadfile", L_loadfile}, {"dofile", L_dofile}, {"_register_class", L_register_class},
     {"_register_weapon", L_register_weapon}, {"_register_component", L_register_component}, {"spawn", L_spawn}, {"remove", L_remove}, {"find", L_find},
@@ -1431,7 +1484,8 @@ static const luaL_Reg kApi[] = {
     {"model_bounds", L_model_bounds}, {"add_component", L_add_component}, {"screen", L_screen},
     {"draw_text", L_draw_text}, {"text_width", L_text_width}, {"draw_rect", L_draw_rect},
     {"draw_image", L_draw_image}, {"image_size", L_image_size}, {"tr", L_tr}, {"list_files", L_list_files},
-    {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {nullptr, nullptr}};
+    {"json_decode", L_json_decode}, {"json_encode", L_json_encode}, {"project", L_project}, {"anim_param", L_anim_param},
+    {"anim_trigger", L_anim_trigger}, {"anim_state", L_anim_state}, {nullptr, nullptr}};
 
 // ---------------------------------------------------------------------------------
 // Script class
@@ -1868,6 +1922,21 @@ void Script::OnBlocked(Entity* e, Entity* other) {
     PushEntity(L, other);
     std::string what = e->classname + ":blocked";
     CallFunction(2, what.c_str());
+    lua_pop(L, 1);
+}
+
+void Script::OnAnimEvent(Entity* e, const std::string& name) {
+    if (!PushCallback(e, "anim_event")) return;
+    lua_pushstring(L, name.c_str());
+    std::string what = e->classname + ":anim_event";
+    CallFunction(2, what.c_str());
+    lua_pop(L, 1);
+}
+
+void Script::CompAnimEvent(Entity* e, Component& c, const std::string& name) {
+    if (!PushCompCallback(e, c, "anim_event")) return;
+    lua_pushstring(L, name.c_str());
+    CallFunction(3, "component anim_event");
     lua_pop(L, 1);
 }
 
