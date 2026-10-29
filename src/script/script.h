@@ -107,6 +107,8 @@ public:
     // calls rbs.<name>(arg) with a JSON argument and returns its result as JSON (null on error);
     // the editor uses it to run script code (dialogue previews)
     json CallJson(const char* name, const json& arg);
+    // same with the entity as first argument: rbs.<name>(entity, arg)
+    json CallEntityJson(const char* name, Entity* e, const json& arg);
     // true if `cls` is `base` or derives from it
     bool IsA(const std::string& cls, const std::string& base) const;
 

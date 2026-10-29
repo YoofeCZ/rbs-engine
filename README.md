@@ -150,6 +150,7 @@ docs/           dokumentace
 - **[Jak udělat vlastní hru](docs/GAME_CREATION.md)** – projekt, levely, nepřátelé, zbraně a předměty bez kódu, menu, export
 - [AI nepřátel](docs/AI.md) – vestavěná AI a všechny její vlastnosti, vlastní AI v Lua a v pluginech
 - [Modování](docs/MODDING.md) – mody, `mod.json`, formáty assetů, modely z Blenderu, textury, zvuky
+- [Ukládání her](docs/SAVES.md) – sloty, F6 / F9, autosave, co se ukládá a co v Lua
 - [Questy a dialogy](docs/QUESTS.md) – příběh jako graf: objektivy, větvení, rozhovory, proměnné mezi mapami
 - [Behavior trees](docs/BEHAVIOR.md) – AI jako graf: uzly, blackboard, vnímání, vlastní uzly
 - [Animátory](docs/ANIMATION.md) – stavové automaty animací: přechody, prolínání, události

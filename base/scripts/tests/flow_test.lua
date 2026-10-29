@@ -245,6 +245,20 @@ return function()
   flow.no_save = true
   pcall(rbs.persist_set, "flow", "{}")  -- leave nothing of the test in the real save
 
+  -- ---- the fields of an entity in a save game ----
+  local ent = {state = "open", count = 3, flag = true, offset = vec(1, 2, 3), list = {1, 2, 3}, nested = {a = 1, b = {c = "x"}},
+               func = function() end, other = {removed = false}, __class = {think = function() end}, props = {x = 1}, classname = "door"}
+  local saved = rbs.save_fields(ent)
+  check("saved fields keep plain values", saved.state == "open" and saved.count == 3 and saved.flag == true and saved.nested.b.c == "x" and #saved.list == 3)
+  check("a vector is saved as a vector", saved.offset.__vec ~= nil and saved.offset.__vec[3] == 3)
+  check("functions, entities and engine keys are not saved", saved.func == nil and saved.other == nil and saved.__class == nil and saved.props == nil and saved.classname == nil)
+  local target = {state = "closed", __class = "keep"}
+  local called = false
+  function target.loaded() called = true end
+  rbs.load_fields(target, rbs.json_decode(rbs.json_encode(saved)))  -- through JSON, like the save file
+  check("loading puts the fields back (vectors too)", target.state == "open" and target.count == 3 and target.offset.x == 1 and target.offset.z == 3 and target.nested.b.c == "x")
+  check("loading leaves the engine's bookkeeping alone and calls loaded()", target.__class == "keep" and called)
+
   -- ---- unknown node types and custom nodes ----
   local before = #flow.order
   local ran = false

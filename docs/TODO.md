@@ -32,9 +32,15 @@ Hotovo (2026-10-29): `base/scripts/dialogue.lua` – **mluvčí** (jméno, barva
 
 Ověřeno: snímky ve hře (close-up, medium, over-shoulder, profile s orbitem, wide, výběr odpovědí, letterbox, skrytý HUD, psaní textu) a v editoru (náhled řádku i výběru, Max, nastavení). **Neověřeno:** myš v náhledu (Next / Replay / Max, klik na odpověď), portréty a emoce (demo nemá obrázky), hlasová věta `voice` na řádku, `auto` posun, uzly Camera a Animate ve hře, mluvčí `player`, použití NPC klávesou E, kamera v mapě bez `entity` (spouštěno konzolí bez NPC).
 
-Zbývá: ladění přímo v editoru bez spuštění hry (grafy), undo a více uzlů najednou, hráč jako postava v záběru (over-shoulder teď ukazuje jen mluvčího), překlady textů z editoru, uložení do slotu hry (stav žije jen po dobu hry), nápověda „Press E to talk" u NPC, titulky / textové efekty (třes, pauza).
+Zbývá: ladění přímo v editoru bez spuštění hry (grafy), undo a více uzlů najednou, hráč jako postava v záběru (over-shoulder teď ukazuje jen mluvčího), překlady textů z editoru, nápověda „Press E to talk" u NPC, titulky / textové efekty (třes, pauza).
 
 ## Úpravy grafů: undo, výběr, schránka (hotové)
 Společné pro všechny čtyři grafy (`editor_graph_edit.cpp`, výběr ve `ui::graph`): snímkový undo/redo (až 100 kroků, tahy myší a psaní se slučují do jednoho kroku), výběr více uzlů (Shift, rámeček, Ctrl+A), tažení skupiny, hromadné mazání, Ctrl+C / X / V / D se zachováním spojení mezi kopírovanými uzly a systémová schránka. Ověřeno skriptovanými příkazy (`… undo|redo|commit|copy|paste|duplicate|select_idx|delete_selected|undo_depth`) na behavior stromu, animátoru, dialogu i questu (počty, unikátní jména, platná spojení, odmítnutí vložení do jiného druhu grafu, přesná obnova dokumentu) a snímkem výběru. **Neověřeno automaticky:** samotná myš (výběrový rámeček, Shift-klik, tažení skupiny, Space + tažení) a klávesové zkratky v běžícím editoru.
 Regresní test dialogu: `quest after`, `quest walk`, `rbs.camera_active` a dialog `auto_demo` hlídají, že se po dialogu uvolní skriptovaná kamera (smoke test `quest_camera_release`; ověřeno, že při rozbitém uvolnění selže).
+
+## Ukládání her (hotové)
+Hotovo: sloty (autosave při vstupu na mapu, quicksave F6 / F9, 10 slotů, libovolná jména), nabídky *Save game* / *Load game* a *Continue*, konzole `save` / `load` / `saves`, `rbs.save_game` / `rbs.load_game`; ukládá se hráč, všechny entity (včetně odstraněných a nově vzniklých), pole z Lua (`rbs.save_fields` / `load_fields`, hook `loaded`), stav questů a proměnné, úkoly, statistiky; atomický zápis. Dokumentace `docs/SAVES.md`.
+
+Ověřeno: dvěma procesy (stav v jednom, načtení v druhém: quest, proměnná, pozice, zabitý grunt a sebraný předmět), na `e1m1` (25 KB, příšery, úkoly), snímky nabídek, testem polí (`quest selftest`), smoke testem. **Neověřeno:** klávesy F6 / F9 a klikání v nabídkách myší, uložení uprostřed boje s projektily, dveře a plošiny v pohybu, nativní pluginy, exportovaná samostatná hra (cesta `saves/`).
+Zbývá: náhledový obrázek ve slotu, potvrzení přepsání slotu, ukládání stavu jednotlivých komponent, odkazy mezi entitami (vlastník střely, cíl příšery), uložení probíhajícího dialogu, třídy bez `loaded` s odkazy na jiné entity.
 

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "game/game.h"
+#include "game/savegame.h"
 #include "ui/console.h"
 
 namespace rbs {
@@ -44,7 +45,7 @@ public:
 
 private:
     enum class State { Menu, Game, Editor };
-    enum class MenuPage { Main, Maps, Mods, Options, Pause, Intermission };
+    enum class MenuPage { Main, Maps, Mods, Options, Pause, Intermission, Save, Load };
     State m_state = State::Menu;
     MenuPage m_page = MenuPage::Main;
     Game m_game;
@@ -86,6 +87,14 @@ private:
     bool ShowEditorInMenu() const;
     bool ShowModsInMenu() const;
     void OpenModsPage();
+    // save games: slots live in saves/<project>/ (game/savegame.h); the menu pages list them
+    bool SaveSlot(const std::string& slot, bool quiet = false);
+    bool LoadSlot(const std::string& slot);
+    void OpenSlotPage(bool saving);
+    void DrawSlotPage(int w, int h, int x, int y);
+    std::vector<savegame::Slot> m_slots;
+    std::string m_notice;     // short message in the menu ("Game saved")
+    float m_noticeTime = 0;
 };
 
 }  // namespace rbs

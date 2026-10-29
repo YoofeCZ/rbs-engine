@@ -335,6 +335,32 @@ void App::RegisterCommands() {
         std::string report;
         project::Build(o, &report);
     }, "build_game [folder] [editor|noeditor] [demo] - export the open project as a standalone game");
+    cvars::AddCommand("save", [this](const std::vector<std::string>& a) { SaveSlot(a.size() > 1 ? a[1] : "quick"); },
+                      "save [slot] - save the game (slot: quick, 1-10, or a name)");
+    cvars::AddCommand("load", [this](const std::vector<std::string>& a) { LoadSlot(a.size() > 1 ? a[1] : "quick"); },
+                      "load [slot] - load a saved game");
+    cvars::AddCommand("menu", [this](const std::vector<std::string>& a) {
+        // menu pause|save|load|main - opens that menu page (tests and screenshots)
+        std::string w = a.size() > 1 ? a[1] : "main";
+        if (m_state == State::Game) {
+            m_paused = true;
+            m_page = MenuPage::Pause;
+            m_menuSel = 0;
+            if (w == "save") OpenSlotPage(true);
+            else if (w == "load") OpenSlotPage(false);
+        } else if (m_state == State::Menu) {
+            m_page = MenuPage::Main;
+            m_menuSel = 0;
+            if (w == "save") OpenSlotPage(true);
+            else if (w == "load") OpenSlotPage(false);
+        }
+    }, "menu <pause|save|load|main> - open a menu page");
+    cvars::AddCommand("saves", [](const std::vector<std::string>&) {
+        for (auto& id : savegame::SlotIds(false)) {
+            savegame::Slot s = savegame::Info(id);
+            if (s.exists) LOG_INFO("  %-6s %s   %d:%02d   %d HP", id.c_str(), s.title.c_str(), (int)s.playtime / 60, (int)s.playtime % 60, (int)s.health);
+        }
+    }, "list the saved games");
     cvars::AddCommand("next_level", [this](const std::vector<std::string>&) {
         if (m_state != State::Game || !m_game.LevelEnded()) {
             LOG_INFO("next_level: only on the level-complete screen");
@@ -440,7 +466,8 @@ void App::Run() {
             if (m_game.Loading()) {
                 m_game.Update(dt, false);
             } else {
-                if (!consoleInput && IsKeyPressed(KEY_ESCAPE)) {
+                bool inSlotPage = m_paused && (m_page == MenuPage::Save || m_page == MenuPage::Load);  // ESC there goes back one page (UpdateMenu)
+                if (!consoleInput && IsKeyPressed(KEY_ESCAPE) && !inSlotPage) {
                     if (m_fromEditor) {
                         m_game.Unload();
                         m_state = State::Editor;
@@ -454,8 +481,23 @@ void App::Run() {
                         m_menuSel = 0;
                     }
                 }
+                // quick save / quick load (F6 / F9, like Quake)
+                if (!m_paused && !consoleInput && !m_fromEditor) {
+                    if (IsKeyPressed(KEY_F6)) SaveSlot("quick");
+                    if (IsKeyPressed(KEY_F9)) {
+                        LoadSlot("quick");
+                        goto draw;
+                    }
+                }
                 bool input = !m_paused && !consoleInput && !m_game.LevelEnded();
                 if (!m_paused) m_game.Update(dt, input);
+                if (m_game.TakeAutosaveRequest() && !m_fromEditor) SaveSlot("auto", true);  // a new map was entered
+                {
+                    std::string slot = m_game.TakeSaveRequest();
+                    if (!slot.empty() && !m_fromEditor) SaveSlot(slot);
+                    slot = m_game.TakeLoadRequest();
+                    if (!slot.empty() && !m_fromEditor && LoadSlot(slot)) goto draw;
+                }
                 if (m_game.RestartRequested()) m_game.Respawn();
                 if (m_game.Active() && !m_execDone && !m_game.Loading()) {
                     m_execDone = true;
@@ -483,7 +525,7 @@ void App::Run() {
                     }
                 }
             }
-            if (m_paused && m_page == MenuPage::Pause && !consoleInput) UpdateMenu(dt);
+            if (m_paused && (m_page == MenuPage::Pause || m_page == MenuPage::Save || m_page == MenuPage::Load) && !consoleInput) UpdateMenu(dt);
             SetCursor(!m_paused && !m_game.LevelEnded() && !m_game.Loading() && !m_game.UiFrozen());
         } else if (m_state == State::Menu) {
             SetCursor(false);
@@ -551,11 +593,16 @@ bool App::MenuItem(const char* label, int index, int x, int y, int size, bool en
 }
 
 void App::UpdateMenu(float dt) {
+    if (m_noticeTime > 0) m_noticeTime -= dt;
     if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) m_menuSel++;
     if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) m_menuSel--;
     if (IsKeyPressed(KEY_ESCAPE) && m_state == State::Menu && m_page != MenuPage::Main) {
         m_page = MenuPage::Main;
         m_menuSel = 0;
+    }
+    if (IsKeyPressed(KEY_ESCAPE) && m_state == State::Game && (m_page == MenuPage::Save || m_page == MenuPage::Load)) {
+        m_page = MenuPage::Pause;  // out of the slot list, back to the pause menu
+        m_menuSel = 1;
     }
     // embers
     if (m_embers.size() < 90 && GetRandomValue(0, 3) == 0)
@@ -613,6 +660,101 @@ void App::OpenModsPage() {
     }
 }
 
+bool App::SaveSlot(const std::string& slot, bool quiet) {
+    if (m_state != State::Game || !m_game.SaveAllowed()) {
+        m_notice = Tr("Cannot save right now");
+        m_noticeTime = 2;
+        if (!quiet && m_state == State::Game) m_game.Message(Tr("Cannot save right now"), 1.5f);
+        return false;
+    }
+    std::string error;
+    if (!savegame::Write(slot, m_game.BuildSave(), &error)) {
+        LOG_ERR("Save game: %s", error.c_str());
+        m_notice = Tr("Saving failed (see the console)");
+        m_noticeTime = 3;
+        return false;
+    }
+    if (!quiet) {
+        m_notice = Tr("Game saved");
+        m_noticeTime = 2;
+        m_game.Message(Tr("Game saved"), 1.5f);
+        LOG_INFO("Game saved to slot '%s'", slot.c_str());
+    }
+    return true;
+}
+
+bool App::LoadSlot(const std::string& slot) {
+    json save;
+    if (!savegame::Read(slot, save)) {
+        m_notice = Tr("No such save");
+        m_noticeTime = 2;
+        LOG_WARN("Save game: slot '%s' is empty or damaged", slot.c_str());
+        return false;
+    }
+    if (save.value("mod", std::string()) != vfs::CurrentMod()) {
+        m_notice = Tr("That save belongs to another game");
+        m_noticeTime = 3;
+        return false;
+    }
+    m_fromEditor = false;
+    m_paused = false;
+    m_execDone = false;
+    if (!m_game.StartLoadSave(save)) return false;
+    m_state = State::Game;
+    m_page = MenuPage::Main;
+    m_console.open = false;
+    return true;
+}
+
+void App::OpenSlotPage(bool saving) {
+    m_page = saving ? MenuPage::Save : MenuPage::Load;
+    m_menuSel = 0;
+    m_slots.clear();
+    for (auto& id : savegame::SlotIds(saving)) m_slots.push_back(savegame::Info(id));
+}
+
+void App::DrawSlotPage(int w, int h, int x, int y) {
+    bool saving = m_page == MenuPage::Save;
+    fonts::Text("title", Tr(saving ? "SAVE GAME" : "LOAD GAME"), (float)x, (float)y - 70, 40, kGold);
+    int n = (int)m_slots.size() + 1;
+    m_menuSel = (m_menuSel % n + n) % n;
+    int visible = std::max(1, (h - y - 90) / 40);
+    int first = std::max(0, std::min(m_menuSel - visible / 2, n - visible));
+    for (int i = first; i < n && i < first + visible; ++i) {
+        int yy = y + (i - first) * 40;
+        if (i == (int)m_slots.size()) {
+            if (MenuItem(Tr("Back"), i, x, yy, 28)) {
+                m_page = m_state == State::Game ? MenuPage::Pause : MenuPage::Main;
+                m_menuSel = m_state == State::Game ? 1 : 0;
+            }
+            continue;
+        }
+        const savegame::Slot& s = m_slots[i];
+        std::string name = s.id == "auto" ? Tr("Autosave") : s.id == "quick" ? Tr("Quicksave") : std::string(Tr("Slot")) + " " + s.id;
+        std::string label = name;
+        if (s.exists) {
+            char when[32] = "";
+            time_t t = (time_t)s.stamp;
+            strftime(when, sizeof(when), "%d.%m. %H:%M", localtime(&t));
+            label += StrFormat("   %s   %s   %d:%02d   %d HP", s.title.c_str(), when, (int)s.playtime / 60, (int)s.playtime % 60, (int)s.health);
+        } else {
+            label += std::string("   ") + Tr("- empty -");
+        }
+        bool enabled = saving || s.exists;
+        if (MenuItem(label.c_str(), i, x, yy, 24, enabled)) {
+            if (saving) {
+                if (SaveSlot(s.id)) {
+                    m_slots[i] = savegame::Info(s.id);
+                    m_page = MenuPage::Pause;  // back to the game's menu with the notice shown
+                    m_menuSel = 1;
+                }
+            } else {
+                LoadSlot(s.id);
+            }
+        }
+    }
+}
+
 void App::DrawMenu(int w, int h) {
     bool inGame = m_state == State::Game;
     if (inGame) DrawRectangle(0, 0, w, h, Color{0, 0, 0, 150});
@@ -667,15 +809,18 @@ void App::DrawMenu(int w, int h) {
     if (m_page == MenuPage::Main || m_page == MenuPage::Pause) {
         if (m_page == MenuPage::Pause) {
             fonts::Text("title", Tr("PAUSED"), (float)x, (float)y - 80, 48, kGold);
-            int n = 4;
+            int n = 6;
             m_menuSel = (m_menuSel % n + n) % n;
             if (MenuItem(Tr("Resume"), idx++, x, y, size)) m_paused = false;
-            if (MenuItem(Tr("Restart level"), idx++, x, y + step, size)) {
+            if (MenuItem(Tr("Save game"), idx++, x, y + step, size, !m_fromEditor && m_game.SaveAllowed())) OpenSlotPage(true);
+            if (MenuItem(Tr("Load game"), idx++, x, y + step * 2, size, !m_fromEditor)) OpenSlotPage(false);
+            if (MenuItem(Tr("Restart level"), idx++, x, y + step * 3, size)) {
                 m_paused = false;
                 m_game.Respawn();
             }
-            if (MenuItem(Tr("Main menu"), idx++, x, y + step * 2, size)) ReturnToMenu();
-            if (MenuItem(Tr("Quit"), idx++, x, y + step * 3, size)) m_quit = true;
+            if (MenuItem(Tr("Main menu"), idx++, x, y + step * 4, size)) ReturnToMenu();
+            if (MenuItem(Tr("Quit"), idx++, x, y + step * 5, size)) m_quit = true;
+            if (m_noticeTime > 0) fonts::Text("ui", m_notice.c_str(), (float)x, (float)(y + step * 6 + 10), 20, kGold);
             return;
         }
         // the items depend on what the game offers: a shipped game can hide the editor and mods
@@ -684,7 +829,10 @@ void App::DrawMenu(int w, int h) {
             std::function<void()> action;
         };
         std::vector<Item> items;
+        std::string latest = savegame::Latest();
+        if (!latest.empty()) items.push_back({Tr("Continue"), [this, latest] { LoadSlot(latest); }});
         items.push_back({Tr("New game"), [this] { StartMap(cvars::Find("game_start_map")->value); }});
+        if (!latest.empty()) items.push_back({Tr("Load game"), [this] { OpenSlotPage(false); }});
         items.push_back({Tr("Maps"), [this] {
                              m_page = MenuPage::Maps;
                              m_menuSel = 0;
@@ -705,6 +853,11 @@ void App::DrawMenu(int w, int h) {
                                                  : proj.title + (proj.version.empty() ? "" : " " + proj.version) + TextFormat("   -   made with RBS Engine v%s", RBS_VERSION);
         if (project::LaunchConfig().console) footer += TextFormat("   F1 = %s", Tr("console"));
         fonts::Text("ui", footer.c_str(), 16, h - 30.0f, 16, kDim);
+        return;
+    }
+
+    if (m_page == MenuPage::Save || m_page == MenuPage::Load) {
+        DrawSlotPage(w, h, x, y);
         return;
     }
 

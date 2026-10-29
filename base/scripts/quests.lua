@@ -374,6 +374,9 @@ function flow.save()
   pcall(rbs.persist_set, "flow", rbs.json_encode(data))
 end
 
+-- the engine is about to write a save game: the progress of the quests goes in with it
+function rbs._before_save() flow.save() end
+
 function flow.restore()
   local ok, text = pcall(rbs.persist_get, "flow")
   if not ok or type(text) ~= "string" then return end
@@ -429,6 +432,11 @@ end
 
 local poll = 0
 function rbs._update(dt)
+  if flow.autodump_after then
+    flow.timers = flow.timers or {}
+    flow.timers[#flow.timers + 1] = {at = rbs.time() + flow.autodump_after, line = "dump"}
+    flow.autodump_after = nil
+  end
   if flow.timers then
     local due, keep = {}, {}
     for _, t in ipairs(flow.timers) do
@@ -774,6 +782,12 @@ function rbs.quest_console(line)
     flow.timers[#flow.timers + 1] = {at = rbs.time() + (tonumber(args[2]) or 0), line = table.concat(rest, " ")}
   elseif cmd == "walk" then
     flow.walk_until = rbs.time() + (tonumber(args[2]) or 1)  -- test helper: the player walks on by itself
+  elseif cmd == "tp" then
+    -- quest tp x y z [yaw]: moves the player (test helper)
+    local pl = rbs.player()
+    if pl then pl.pos = vec(tonumber(args[2]) or 0, tonumber(args[3]) or 0, tonumber(args[4]) or 0) end
+  elseif cmd == "save" then rbs.save_game(args[2] or "quick")
+  elseif cmd == "load" then rbs.load_game(args[2] or "quick")
   elseif cmd == "reset" then flow.reset(); rbs.log("quests reset")
   elseif cmd == "map" then flow.save(); rbs.change_map(args[2] or "")
   elseif cmd == "selftest" then rbs.flow_selftest()
@@ -799,6 +813,11 @@ function rbs.quest_console(line)
     table.sort(keys)
     rbs.log("VARS " .. table.concat(keys, " "))
     rbs.log("CAMERA " .. (rbs.camera_active() and "on" or "off") .. " cinematic " .. tostring(flow.cinematic == true))
+    local pl = rbs.player()
+    if pl then
+      rbs.log(string.format("PLAYER %.0f %.0f %.0f hp %.0f armor %.0f", pl.pos.x, pl.pos.y, pl.pos.z, pl.health, pl.armor or 0))
+      rbs.log(string.format("COUNT grunts %d rockets %d imps %d", #rbs.find_class("monster_grunt"), #rbs.find_class("item_rockets"), #rbs.find_class("monster_imp")))
+    end
   else
     rbs.log("quest start|event|var|say|next|pick|dump|reset|selftest")
   end
@@ -811,3 +830,11 @@ function rbs.flow_selftest()
 end
 
 flow.restore()
+
+-- tests: cvar quest_autodump <seconds> writes `quest dump` that long after the scripts started
+-- (a loaded save starts new scripts, so a timer set before the load would be gone)
+do
+  local ok, seconds = pcall(rbs.cvar, "quest_autodump")
+  if ok and type(seconds) == "number" and seconds > 0 then flow.autodump_after = seconds end
+end
+

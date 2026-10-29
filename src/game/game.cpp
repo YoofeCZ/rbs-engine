@@ -17,6 +17,7 @@ Game::Game() {
     g_infinite_ammo = cvars::Register("g_infinite_ammo", "0", false, "weapons never run out of ammo");
     cvars::Register("bt_debug", "0", false, "show the behavior tree state of nearby monsters");
     cvars::Register("quest_debug", "0", false, "log quest and dialogue events and the nodes they enter");
+    cvars::Register("quest_autodump", "0", false, "tests: seconds after a map started (or a save was loaded) to run `quest dump` once");
     s_volume = cvars::Register("s_volume", "0.8", true, "sound effects volume");
     s_musicvolume = cvars::Register("s_musicvolume", "0.5", true, "music volume");
     m_fx.Init();
@@ -87,10 +88,15 @@ void Game::FinishLoading() {
     }
     m_loading = false;
     m_active = true;
+    // everything the map and its scripts made so far is "the map": a save finds its entities by id
+    m_initialNextId = m_nextId;
+    if (m_pendingSave.is_object()) ApplyPendingSave();
+    else m_autosaveRequest = true;  // a map that was just entered: the app writes the autosave
     UpdateCamera(0);
 }
 
 void Game::Unload() {
+    m_pendingSave = json();
     for (auto& e : m_entities) DestroyEntityScripts(e.get());
     m_entities.clear();
     m_byId.clear();

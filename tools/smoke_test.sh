@@ -79,6 +79,22 @@ if ! grep -q "CAMERA off cinematic false" "$OUT/quest_camera_release.log"; then
     echo "   FAILED: the dialogue camera was not released after the dialogue ended"
     status=1
 fi
+# save games: a run changes the game and saves it to a slot, another run loads it in a new game and has to
+# find the same state (quest progress, a killed monster and a taken item gone, the player where it was)
+rm -rf "$ROOT/saves/quest_demo/smoke_save.json"
+run save_game 1280x720 --mod quest_demo --map quest_arena --frames 700 --exec "god; quest start clear_arena; quest var gold 42; setpos 640 52 306 0 0; fire; fire; fire; fire; quest after 0.4 tp 300 40 0; quest after 1.2 save smoke_save"
+if [ ! -f "$ROOT/saves/quest_demo/smoke_save.json" ]; then
+    echo "   FAILED: the save game was not written"
+    status=1
+fi
+run load_game 1280x720 --mod quest_demo --map quest_arena --frames 400 --exec "god; quest_autodump 1.0; load smoke_save"
+for want in "VARS gold=42" "COUNT grunts 2 rockets 1" "QUEST clear_arena \[active\]"; do
+    if ! grep -q "$want" "$OUT/load_game.log"; then
+        echo "   FAILED: the loaded game does not match the saved one ($want missing)"
+        status=1
+    fi
+done
+rm -f "$ROOT/saves/quest_demo/smoke_save.json"
 # a dialogue that is still typing (voice blips overlap, the sound alias pool fills) when the game exits
 run quest_voice 1280x720 --mod quest_demo --map quest_arena --frames 150 --exec "god; quest say guard"
 # the animator editor: opens the grunt animator in a tab and selects a state

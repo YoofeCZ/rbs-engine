@@ -5,6 +5,7 @@ out/
 cmake-build-*/
 # runtime files
 config.cfg
+saves/
 builds/
 base/cache/
 mods/*/cache/

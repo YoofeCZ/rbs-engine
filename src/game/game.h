@@ -139,6 +139,21 @@ public:
     bool LevelEnded() const { return m_levelEnded; }
     bool RestartRequested() const { return m_restart; }
     Carry MakeCarry() const;
+
+    // ---- save games (game_save.cpp) ----
+    bool SaveAllowed() const;                  // alive, in a running map, no dialogue open
+    json BuildSave();                          // the whole state of the game as JSON
+    bool StartLoadSave(const json& save);      // loads the save's map; the state is put on it when the map is ready
+    // scripts ask for a save / load (rbs.save_game / rbs.load_game); the app does it after the frame
+    void RequestSave(const std::string& slot) { m_saveRequest = slot; }
+    void RequestLoad(const std::string& slot) { m_loadRequest = slot; }
+    std::string TakeSaveRequest() { std::string r; r.swap(m_saveRequest); return r; }
+    std::string TakeLoadRequest() { std::string r; r.swap(m_loadRequest); return r; }
+    bool TakeAutosaveRequest() {               // true once after a new map started (the app writes the autosave)
+        bool r = m_autosaveRequest;
+        m_autosaveRequest = false;
+        return r;
+    }
     void Respawn();
     std::string DebugText() const;
 
@@ -161,6 +176,11 @@ private:
     Carry m_carry;
     std::vector<Objective> m_objectives;
     std::map<std::string, std::string> m_persist;
+    int m_initialNextId = 1;      // entity ids below this were made by the map and the scripts' spawn()
+    json m_pendingSave;           // a save waiting for its map to finish loading
+    bool m_autosaveRequest = false;
+    std::string m_saveRequest, m_loadRequest;
+    void ApplyPendingSave();
     struct ScriptCamera {
         bool active = false, releasing = false, init = false;
         Vector3 pos{}, look{}, tpos{}, tlook{};
