@@ -903,8 +903,10 @@ Sound Game::GetSoundAlias(const std::string& path) {
         pool.push_back(LoadSoundAlias(pool[0]));
         return pool.back();
     }
-    StopSound(pool[0]);
-    std::rotate(pool.begin(), pool.begin() + 1, pool.end());
+    // the pool is full: reuse the oldest alias. pool[0] is the base sound that owns the data and
+    // must stay first - Unload frees pool[1..] as aliases, the assets free pool[0]
+    StopSound(pool[1]);
+    std::rotate(pool.begin() + 1, pool.begin() + 2, pool.end());
     return pool.back();
 }
 
