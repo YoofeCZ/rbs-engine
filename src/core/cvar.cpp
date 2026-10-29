@@ -131,6 +131,11 @@ void ExecuteSettings(const std::string& text, const char* source) {
             LOG_WARN("%s: only variables can be set here, ignoring command '%s'", source, words[0].c_str());
             continue;
         }
+        Cvar* v = Find(words[0]);
+        if (v && v->archive) {
+            LOG_WARN("%s: '%s' is a player setting, ignoring it", source, words[0].c_str());
+            continue;
+        }
         if (words.size() >= 2) Set(words[0], words[1]);
     }
 }

@@ -14,14 +14,14 @@ Přehled pro ty, kdo chtějí upravovat samotný engine (C++). Herní logika je 
 
 | Složka | Obsah |
 |---|---|
-| `core/` | `vfs` (vrstvy `mods/<mod>` → `base`), `cvar` (proměnné a příkazy konzole, `config.cfg`), `input` (přemapovatelné klávesy `bind_*`), `log`, `common.h` (matematika, řetězce) |
+| `core/` | `vfs` (vrstvy `mods/<mod>` → `base`), `project` (otevřený projekt hry: `mod.json`, `launch.json` exportované hry), `cvar` (proměnné a příkazy konzole, `config.cfg`), `input` (přemapovatelné klávesy `bind_*`), `log`, `common.h` (matematika, řetězce) |
 | `world/` | `brush` (konvexní brushe z rovin, polygonizace v double, CSG: subtract, hollow, split; UV), `map` (JSON load/save, viz [MAP_FORMAT.md](MAP_FORMAT.md)), `collision` (BVH nad brushi, Quake 3 trace boxu s bevel rovinami, pohyblivé brush entity) |
 | `render/` | `renderer` (shadery, scéna v nižším rozlišení, post-process, dynamická světla, billboardy), `world_renderer` (meshe mapy seskupené podle entity a textury), `lightmap` (pečení lightmap), `assets` (cache textur, modelů, zvuků, hudby) |
 | `game/` | `game` (načtení mapy, entity, fyzika, triggery, zvuky), `player` (pohyb à la Quake), `game_combat` (hitscan, projektily, exploze, poškození, gibs), `game_draw` (kamera, scéna, zbraň v ruce, HUD), `effects` (částice, decaly, dočasná světla) |
 | `script/` | `script` (Lua stav, proxy entit, celé `rbs.*` API, události), `plugins` (C ABI pro nativní pluginy), `dynlib` (načítání .dll/.so/.dylib – odděleně, aby se `<windows.h>` nepotkal s raylibem) |
-| `editor/` | `editor` (stav, operace s mapou, undo, import), `editor_views` (2D/3D pohledy, picking, gizmo, nástroje), `editor_panels` (toolbar, Hierarchy, Inspector, Project, dialogy) |
+| `editor/` | `editor` (stav, operace s mapou, undo, import), `editor_views` (2D/3D pohledy, picking, gizmo, nástroje), `editor_panels` (toolbar, Hierarchy, Inspector, Project, dialogy), `editor_project` (dialog projektu, typy entit a zbraně bez kódu v Inspectoru) |
 | `ui/` | `imgui` (vlastní immediate-mode UI editoru), `fonts` (TTF/OTF včetně latinky rozšířené), `console`, `lang` (překlady) |
-| `app/` | `App`: stavy Menu / Game / Editor, hlavní smyčka, menu, příkazy konzole |
+| `app/` | `App`: stavy Menu / Game / Editor, hlavní smyčka, menu, příkazy konzole, přepínání projektů; `project_tools` (nový projekt, export samostatné hry) |
 
 ## Snímek (frame)
 
@@ -57,9 +57,15 @@ App::Run
 
 Pečení běží asynchronně na všech jádrech (`std::thread`). Výsledek se ukládá do `cache/<mapa>.lmcache` s hashem JSONu mapy. Hodnoty jsou uložené v poloviční intenzitě (2× overbright jako v Quake 3).
 
+## Projekty a export
+
+- Projekt hry = složka `mods/<projekt>/` (vrstva VFS nad `base/`) s `mod.json`. `project::Current()` ho čte, `App::SwitchProject` přepne VFS a znovu načte assety, shadery, pluginy, fonty, překlad a `ApplyGameConfig` (startovní mapa, `game.cfg` – jen herní proměnné, nastavení hráče ne).
+- `project::Build` (`app/project_tools.cpp`) zkopíruje spustitelný soubor enginu (`dynlib::ExecutablePath`), `base/` bez cache, projekt a licence a zapíše `launch.json`. `vfs::Init` dá složce se `launch.json` vedle spustitelného souboru přednost, takže exportovaná hra vždy běží na svých datech.
+
 ## Skriptování a pluginy
 
-- `Script::Init` vytvoří sandboxovaný Lua stav. Následuje prelude (`rbs.class`, `rbs.component`, `rbs.weapon`, `require` přes VFS) a `scripts/init.lua`, pak `scripts/autorun/*.lua` ze všech vrstev a skript mapy.
+- `Script::Init` vytvoří sandboxovaný Lua stav. Následuje prelude (`rbs.class`, `rbs.component`, `rbs.weapon`, `require` přes VFS) a `scripts/init.lua`, pak `scripts/autorun/*.lua` ze všech vrstev, `rbs._load_definitions()` (typy a zbraně bez kódu z `entities/*.json` a `weapons/*.json`, `scripts/definitions.lua`) a skript mapy.
+- Obsah bez kódu je jen data nad vestavěnými třídami: vestavěná AI (`monsters/base.lua`), předměty (`entities/items.lua`) a výstřel zbraní (`rbs.fire_weapon`) čtou své chování z vlastností. Editor jejich nabídky a nápovědu bere z `editor.enums` / `editor.help` (a `rbs.weapon_fields`).
 - Nativní pluginy: `plugins::LoadAll` najde knihovny v `plugins/` všech vrstev a každou zkopíruje do `cache/plugins/<jméno>_<n>` (aby šla původní přepsat → hot reload). Pak zavolá `rbs_plugin_init(&api)`. Tabulka `rbs_api` je **jen rozšiřovaná na konci** a verzovaná (`RBS_PLUGIN_API_VERSION`).
 
 ### Jak přidat funkci do API

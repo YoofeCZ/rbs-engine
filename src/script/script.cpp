@@ -1153,7 +1153,12 @@ static int L_aim(lua_State* L) {
 
 static int L_cvar(lua_State* L) {
     const char* name = luaL_checkstring(L, 1);
-    if (!lua_isnoneornil(L, 2)) cvars::Set(name, luaL_tolstring(L, 2, nullptr));
+    if (!lua_isnoneornil(L, 2)) {
+        // scripts are mod content: they may change game variables, not the player's settings
+        Cvar* cv = cvars::Find(name);
+        if (cv && cv->archive) LOG_WARN("rbs.cvar: '%s' is a player setting, scripts cannot change it", name);
+        else cvars::Set(name, luaL_tolstring(L, 2, nullptr));
+    }
     Cvar* cv = cvars::Find(name);
     if (!cv) {
         lua_pushnil(L);

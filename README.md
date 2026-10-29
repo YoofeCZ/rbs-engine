@@ -1,6 +1,8 @@
 # RBS Engine — retro boomer shooter engine
 
-Open-source engine a editor pro retro FPS ve stylu Quake / Doom 90. let – jako **desktopová aplikace** (žádný web), s plně 3D modely, předpočítaným osvětlením, gore efekty a editorem map ve stylu Unity. Vše je moddovatelné: hru můžeš upravovat v **Lua** bez kompilace, nebo psát herní kód v **C, C++, Rustu, C#** (a čemkoli dalším, co umí C ABI).
+Open-source **engine a nástroj na tvorbu vlastních retro FPS** ve stylu Quake / Doom 90. let – něco jako Unity nebo FPS Creator, ale zaměřené na boomer shootery. Je to **desktopová aplikace** (žádný web) s plně 3D modely, předpočítaným osvětlením, gore efekty a editorem ve stylu Unity.
+
+Každý si v něm může udělat **vlastní hru**: levely, nepřátele, zbraně, předměty, menu i nastavení – **bez programování**, přímo v editoru. Kdo chce víc, napíše si vlastní AI, zbraně nebo pravidla v **Lua** (bez kompilace), nebo v **C, C++, Rustu, C#** (a čemkoli dalším, co umí C ABI). Hotovou hru jedním tlačítkem vyexportuješ jako **samostatnou aplikaci** pro hráče. Součástí je ukázková hra, ze které můžeš vycházet.
 
 ![Dvůr pivovaru](docs/images/yard.jpg)
 
@@ -12,6 +14,14 @@ Open-source engine a editor pro retro FPS ve stylu Quake / Doom 90. let – jako
 ![Editor](docs/images/editor.jpg)
 
 ## Co umí
+
+**Tvorba her**
+- **Projekty**: každá hra je složka v `mods/` s vlastními levely, obsahem, menu (nadpis, pozadí) a nastavením hráče. Nový projekt jedním kliknutím v editoru.
+- **Nepřátelé bez kódu**: vestavěná AI s režimy *chase / ranged / melee / turret / patrol*, útoky hitscan / projektil / zblízka / skok, hlídky po waypointech, přepadení, útěk při zranění – vše nastavitelné v Inspectoru s rozbalovacími seznamy a nápovědou.
+- **Zbraně a předměty bez kódu**: nová zbraň je kopie existující s jinými hodnotami (poškození, rozptyl, kadence, munice, projektil, model, zvuk); každá zbraň má hned i sebratelnou verzi do mapy.
+- **Logika levelů bez kódu**: dveře, tlačítka, výtahy, klíče, triggery, tajné místnosti, cíle mise, kamery, přechody mezi levely.
+- **Vlastní kód, když je potřeba**: přepiš jen útok, rozhodování nebo celé chování nepřítele; Lua i nativní pluginy.
+- **Build game**: export samostatné hry (spustitelný soubor s názvem hry + data + licence), která se spustí rovnou do tvého menu.
 
 **Engine**
 - Nativní aplikace pro **Windows, Linux a macOS** (C++17 + [raylib](https://www.raylib.com), OpenGL 3.3).
@@ -87,6 +97,13 @@ Spustitelný soubor si najde složku `base/` sám (vedle sebe nebo v nadřazený
 ./build/rbs --mod example_mod       # s modem
 ```
 
+### Vlastní hra
+
+```bash
+./build/rbs --editor
+```
+V editoru klikni nahoře v panelu Hierarchy na **Project** → **New project...**, pojmenuj hru a začni stavět. Celý postup – levely, nepřátelé, zbraně, nastavení a export – je v návodu **[Jak udělat vlastní hru](docs/GAME_CREATION.md)**.
+
 ## Ovládání
 
 | Hra | |
@@ -117,7 +134,8 @@ src/            zdrojový kód enginu (C++)
   ui/           UI toolkit, konzole, fonty, překlady
 base/           data hry (vše se dá přepsat modem)
   maps/ scripts/ textures/ models/ sounds/ sprites/ decals/ hud/ shaders/ fonts/ lang/
-mods/           mody (example_mod = Lua, plugin_demo = nativní pluginy)
+mods/           projekty her a mody (example_mod = Lua, plugin_demo = nativní pluginy)
+builds/         exportované hry (Build game, není v gitu)
 sdk/            C API pro nativní pluginy + příklady (C, C++, Rust, C#)
 tools/          generátory assetů a ukázkových map (Python)
 docs/           dokumentace
@@ -125,7 +143,9 @@ docs/           dokumentace
 
 ## Dokumentace
 
-- [Modování](docs/MODDING.md) – mody, formáty assetů, modely z Blenderu, textury, zvuky
+- **[Jak udělat vlastní hru](docs/GAME_CREATION.md)** – projekt, levely, nepřátelé, zbraně a předměty bez kódu, menu, export
+- [AI nepřátel](docs/AI.md) – vestavěná AI a všechny její vlastnosti, vlastní AI v Lua a v pluginech
+- [Modování](docs/MODDING.md) – mody, `mod.json`, formáty assetů, modely z Blenderu, textury, zvuky
 - [Lua skriptování](docs/SCRIPTING.md) – kompletní API: třídy, komponenty, zbraně, AI, HUD, hooky
 - [Nativní pluginy](docs/PLUGINS.md) – C / C++ / Rust / C# / Zig / Go přes C ABI
 - [Editor](docs/EDITOR.md) – nástroje, klávesy, postupy
@@ -134,11 +154,11 @@ docs/           dokumentace
 
 ## Konzole
 
-`help` vypíše příkazy, `cvarlist` proměnné. Užitečné: `map e1m1`, `editor`, `god`, `noclip`, `give all`, `weapon plasma`, `mod example_mod`, `lang cs`, `r_scale 0.5` (chunky pixely), `r_posterize 24` (retro paleta), `fov 110`, `lua <kód>`, `import <soubor/složka>`, `reload_plugins`, `screenshot`.
+`help` vypíše příkazy, `cvarlist` proměnné. Užitečné: `map e1m1`, `editor`, `god`, `noclip`, `give all`, `weapon plasma`, `mod example_mod`, `project`, `new_project <složka> [název]`, `build_game`, `lang cs`, `r_scale 0.5` (chunky pixely), `r_posterize 24` (retro paleta), `fov 110`, `lua <kód>`, `import <soubor/složka>`, `reload_plugins`, `screenshot`.
 
 ## Testy
 
-`tools/smoke_test.sh` spustí bez okna (přes Xvfb) demo mapu, editor a oba ukázkové mody, uloží screenshoty a selže při chybě ve skriptech, chybějícím assetu nebo nenačteném pluginu. Totéž běží v GitHub Actions (`.github/workflows/build.yml`) spolu s buildem pro Linux, Windows a macOS.
+`tools/smoke_test.sh` spustí bez okna (přes Xvfb) demo mapu, editor a oba ukázkové mody, vytvoří nový projekt, vyexportuje ho jako samostatnou hru a tu spustí. Uloží screenshoty a selže při chybě ve skriptech, chybějícím assetu nebo nenačteném pluginu. Totéž běží v GitHub Actions (`.github/workflows/build.yml`) spolu s buildem pro Linux, Windows a macOS.
 
 ## Assety
 
@@ -158,4 +178,4 @@ MIT – viz [LICENSE](LICENSE). Licence knihoven a fontů v [THIRD_PARTY.md](THI
 
 ## English summary
 
-**RBS Engine** is an open-source retro boomer shooter engine and level editor written in C++17 on top of raylib. It is a native desktop application (Windows / Linux / macOS) featuring Quake-style brush maps with CSG, ray-traced lightmaps with bounce light and AO, glTF skeletal models, Quake movement (strafe jumping, bunny hopping), gore decals and gibs, a Unity-style editor (Hierarchy, Inspector with components, Project browser with drag & drop, 4 viewports, gizmo, prefabs, bake & play in editor) and deep moddability: a mod folder can override any file, gameplay is scripted in **Lua**, and entity classes/components can also be written as **native plugins in C, C++, Rust or C#** (or any language with a C ABI). Build with CMake (`cmake -S . -B build && cmake --build build`), run `build/rbs`. See `docs/` for the scripting API, plugin SDK, editor manual and map format.
+**RBS Engine** is an open-source engine and creation tool for retro boomer shooters (think Unity or FPS Creator, focused on Quake/Doom-style games), written in C++17 on top of raylib. It is a native desktop application (Windows / Linux / macOS) featuring Quake-style brush maps with CSG, ray-traced lightmaps with bounce light and AO, glTF skeletal models, Quake movement (strafe jumping, bunny hopping), gore decals and gibs, and a Unity-style editor (Hierarchy, Inspector with components, Project browser with drag & drop, 4 viewports, gizmo, prefabs, bake & play in editor). Anyone can make their own game in it: a game is a project folder with its own levels, menu and settings; enemies (built-in AI with chase/ranged/melee/turret/patrol modes, attack types, patrols, ambushes), weapons and items are made **without code** in the editor, and **Build game** exports a standalone game. For anything else, gameplay is scripted in **Lua**, and entity classes/components can also be written as **native plugins in C, C++, Rust or C#** (or any language with a C ABI). Build with CMake (`cmake -S . -B build && cmake --build build`), run `build/rbs`. See `docs/` (Czech) for the game creation guide, AI, scripting API, plugin SDK, editor manual and map format.

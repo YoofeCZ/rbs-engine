@@ -140,12 +140,15 @@ void App::ReturnToMenu() {
     m_menuSel = 0;
 }
 
-// game.cfg (in base or the active mod) sets the start map and other game variables
+// The rules of the game come from the project: the start map from mod.json, then game.cfg
+// (in base or the project) for game variables like sv_maxspeed. Player settings (saved in
+// config.cfg: mouse, FOV, video, sound) are never touched by a project.
 void App::ApplyGameConfig() {
-    if (Cvar* start = cvars::Find("game_start_map")) {
-        start->Set(start->defaultValue);
+    // one project's rules do not carry over into the next one
+    for (Cvar* v : cvars::All())
+        if (!v->archive) v->Set(v->defaultValue);
+    if (Cvar* start = cvars::Find("game_start_map"))
         if (!project::Current().startMap.empty()) start->Set(project::Current().startMap);
-    }
     std::string text;
     if (vfs::ReadText("game.cfg", text)) cvars::ExecuteSettings(text, "game.cfg");
 }

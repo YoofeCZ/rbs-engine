@@ -2,17 +2,19 @@
 
 ![Editor](images/editor.jpg)
 
-Editor spustíš příkazem `rbs --editor [mapa]`, z hlavního menu (**Editor map**), nebo příkazem `editor` v konzoli. Mapy se ukládají jako JSON (`maps/<jméno>.json`) do aktivního modu, nebo do `base/`, když žádný mod aktivní není.
+Editor spustíš příkazem `rbs --editor [mapa]`, z hlavního menu (**Editor map**), nebo příkazem `editor` v konzoli. Mapy se ukládají jako JSON (`maps/<jméno>.json`) do otevřeného projektu (`mods/<projekt>/`), nebo do `base/`, když žádný projekt otevřený není.
+
+Jak v editoru udělat celou hru – projekt, nepřátelé, zbraně, nastavení a export – popisuje [GAME_CREATION.md](GAME_CREATION.md).
 
 ## Rozložení
 
 | Panel | Co obsahuje |
 |---|---|
 | **Toolbar** (nahoře) | New / Open / Save / Save As, Undo / Redo, nástroje, Hollow / Subtract / To Entity, mřížka, **Bake Light**, **Play**, **Play here** |
-| **Hierarchy** (vlevo) | Nastavení mapy, entity podle kategorií (brushe entity jsou pod ní), brushe světa. Vyhledávání, dvojklik = zaměřit kameru, přetažení komponenty na řádek = přidání komponenty |
+| **Hierarchy** (vlevo) | Nahoře tlačítko **Project** s názvem otevřené hry (dialog projektu), pod ním nastavení mapy, entity podle kategorií (brushe entity jsou pod ní), brushe světa. Vyhledávání, dvojklik = zaměřit kameru, přetažení komponenty na řádek = přidání komponenty |
 | **Pohledy** (uprostřed) | **Top**, **Front**, **Side** (2D, mřížka) a **Perspective** (3D s osvětlením a gizmem). `Tab` zvětší pohled pod myší na celou plochu |
-| **Inspector** (vpravo) | Podle výběru: **entita** (třída, popis, Transform, Properties, **Components** + *Add Component*), **brush** (pozice, velikost, textura, operace), **plocha** (posun, měřítko, rotace textury, *Fit to face*, *Reset*), nic = **nastavení mapy** (obloha, slunce, ambient, mlha, kvalita lightmap, gravitace, hudba, další mapa) |
-| **Project** (dole) | Entities, Components, Textures, Models, Sprites, Sounds, Prefabs, Maps, Scripts – vše přetažitelné do pohledů. Tlačítka *Reload scripts* a *Reload plugins* |
+| **Inspector** (vpravo) | Podle výběru: **entita** (třída, popis, Transform, Properties, **Components** + *Add Component*), **brush** (pozice, velikost, textura, operace), **plocha** (posun, měřítko, rotace textury, *Fit to face*, *Reset*), **typ entity nebo zbraň** kliknutá v Project (úprava bez kódu, viz níže), nic = **nastavení mapy** (obloha, slunce, ambient, mlha, kvalita lightmap, gravitace, hudba, další mapa) |
+| **Project** (dole) | Entities, Weapons, Components, Textures, Models, Sprites, Sounds, Prefabs, Maps, Scripts – vše přetažitelné do pohledů. Tlačítka *+ New type*, *+ New weapon*, *Reload scripts* a *Reload plugins* |
 | **Console** (dole, záložka) | log a příkazová řádka (stejná jako ve hře) |
 
 ## Ovládání pohledů
@@ -80,6 +82,26 @@ Přetáhni soubory nebo celé složky ze svého průzkumníku souborů **přímo
 
 Pustíš-li jeden model, sprite, zvuk nebo prefab nad pohledem, rovnou se tam i umístí; texturu puštěnou na plochu ve 3D na ni rovnou nanese. Stejně funguje příkaz konzole `import <soubor nebo složka>`. Soubor se stejným jménem se přepíše a textura se hned obnoví.
 
+## Projekt hry
+
+Tlačítko **Project** nahoře v Hierarchy otevře dialog projektu:
+
+- **New project...** – nová hra v `mods/<složka>/` se startovní místností; hned se otevře.
+- seznam projektů + **Open** – přepnutí na jinou hru (`base` = ukázková hra). Změny v uložené mapě se před přepnutím uloží; mapa, která ještě nikdy uložená nebyla, by se ztratila – dialog na to upozorní.
+- **nastavení** – název, autor, verze, popis, startovní mapa, hlavní menu (nadpis, podnadpis, pozadí – přetáhni sprite, editor a Mods v exportované hře), hráč na startu levelu (zdraví, brnění, zbraně). **Save settings** zapíše `mod.json`.
+- **Build game** – export samostatné hry do `builds/<projekt>/` ([GAME_CREATION.md](GAME_CREATION.md#10-export-hry)).
+
+## Typy entit a zbraně bez kódu
+
+Klikni v **Project → Entities** na typ (např. `monster_grunt`) nebo v **Project → Weapons** na zbraň – Inspector ukáže jeho vlastnosti:
+
+- U typu napsaného v kódu: **Create a variant (no code)** / **Create a new weapon from this** vytvoří kopii, kterou jde měnit; **Place** přepne na nástroj Entity s tímto typem (u zbraní **Place its pickup**).
+- U typu bez kódu (štítek *no-code*, soubor `entities/<jméno>.json` nebo `weapons/<id>.json`): všechny vlastnosti jdou upravit. Hodnoty s pevnou nabídkou mají rozbalovací seznam (`ai`, `attack_type`, `shot`…), najetí myší na název vlastnosti ukáže nápovědu, `x` vrátí hodnotu na výchozí ze základu a dole jde přidat další vlastnost. **Save** uloží soubor a změna se hned projeví na všech umístěných kusech, **Revert** ji zahodí, **Delete** soubor smaže (po potvrzení).
+
+Tlačítka **+ New type** a **+ New weapon** vytvoří nový typ rovnou (jméno + z čeho vychází). Vlastnosti AI nepřátel popisuje [AI.md](AI.md).
+
+Vlastnosti jednoho umístěného kusu měníš jako dřív – vyber ho v mapě a uprav Properties v Inspectoru; přebijí hodnoty typu.
+
 ## Entity se brushi (dveře, výtahy, triggery)
 
 Vyber brushe a klikni na **To Entity** (zadáš třídu, např. `func_door`). Brushe se stanou součástí entity – pohybují se s ní a mají její vlastnosti. Hotové třídy: `func_door`, `func_plat`, `func_button`, `func_wall`, `func_illusionary`, `trigger_once`, `trigger_multiple`, `trigger_hurt`, `trigger_push`, `trigger_secret`, `trigger_changelevel`, `trigger_camera`. Tlačítko **Move to world** v Inspectoru brush zase vrátí do světa.
@@ -104,3 +126,5 @@ Vyber skupinu brushů a entit → **Project → Prefabs → Save selection as pr
 ## Skripty a pluginy
 
 **Project → Scripts** – klik otevře skript ve výchozím textovém editoru systému. Po úpravě klikni na **Reload scripts**: nové třídy a komponenty se hned objeví v Project a Inspectoru. Po přeložení nativního pluginu klikni na **Reload plugins**.
+
+Lua API: [SCRIPTING.md](SCRIPTING.md), vlastní AI: [AI.md](AI.md), nativní pluginy: [PLUGINS.md](PLUGINS.md).

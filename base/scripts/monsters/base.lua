@@ -113,7 +113,7 @@ local function play_sound(path, pos, pitch)
   if path and path ~= "" then rbs.sound(path, pos, 1.0, pitch or (0.9 + math.random() * 0.2)) end
 end
 
-rbs.class("monster_base", {
+local monster_base = {
   editor = { category = "monsters", color = {255, 130, 30}, mins = {-16, -24, -16}, maxs = {16, 32, 16},
              desc = "Built-in monster AI (base of all monsters).", props = TUNABLES, enums = ENUMS, help = HELP },
   max_hp = 60,
@@ -374,7 +374,10 @@ rbs.class("monster_base", {
     self.state = "dead"
     self:walk(vec(0, 0, 0), 0)
   end,
-})
+}
+-- the defaults are class fields too, so classes that list only a few props still have them all
+for k, v in pairs(TUNABLES) do monster_base[k] = v end
+rbs.class("monster_base", monster_base)
 
 -- Waypoint for patrolling monsters: give it a targetname, point the monster's patrol_path
 -- at it and link the next corner with target. wait = seconds to stand there.

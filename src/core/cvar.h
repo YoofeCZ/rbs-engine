@@ -31,8 +31,9 @@ std::vector<Cvar*> All();
 void AddCommand(const std::string& name, CommandFn fn, const char* help);
 // Executes a console line ("map e1m1", "sensitivity 3", ...). Multiple commands separated by ';'.
 void Execute(const std::string& line);
-// Variable assignments only ("game_start_map maps/arena.json"), commands are refused:
-// for files that come with mods (game.cfg), which are untrusted content.
+// Variable assignments only ("game_start_map maps/arena.json"); commands and player
+// settings (archived variables) are refused: for files that come with mods (game.cfg),
+// which are untrusted content.
 void ExecuteSettings(const std::string& text, const char* source);
 // Unparsed text after the command name of the command being executed (quotes kept),
 // for commands that take code or free text: lua print("hi")
