@@ -1,0 +1,14 @@
+[package]
+name = "rust_plugin"
+version = "0.1.0"
+edition = "2021"
+description = "Example RBS Engine native plugin written in Rust"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+panic = "abort"

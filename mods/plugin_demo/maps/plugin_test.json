@@ -1,0 +1,1031 @@
+{
+ "format": "rbs-map",
+ "version": 1,
+ "settings": {
+  "title": "Plugin test arena",
+  "sky_zenith": [
+   0.05,
+   0.08,
+   0.2
+  ],
+  "sky_horizon": [
+   0.3,
+   0.4,
+   0.7
+  ],
+  "sky_clouds": [
+   0.2,
+   0.25,
+   0.4
+  ],
+  "sun_dir": [
+   -0.4,
+   -0.7,
+   0.3
+  ],
+  "sun_color": [
+   0.9,
+   0.9,
+   1.0
+  ],
+  "sun_intensity": 0.9,
+  "ambient": [
+   0.12,
+   0.12,
+   0.15
+  ],
+  "sky_light": 0.6,
+  "fog_density": 0.0
+ },
+ "brushes": [
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "metal_plate"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "metal_plate"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 0,
+     "tex": "metal_plate"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 16,
+     "tex": "metal_plate"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": 784,
+     "tex": "metal_plate"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 784,
+     "tex": "metal_plate"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "sky"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "sky"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 400,
+     "tex": "sky"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": -384,
+     "tex": "sky"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": 784,
+     "tex": "sky"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 784,
+     "tex": "sky"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": -768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 384,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 0,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": -768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 384,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 0,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 384,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 0,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": -768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 768,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 384,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 0,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": 784,
+     "tex": "concrete_panel"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": -768,
+     "tex": "concrete_panel"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "d": 160.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "d": 0.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": -384.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 464.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.0,
+      0.0,
+      -1.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "d": 160.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "d": 0.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": -384.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.0,
+      0.0,
+      -1.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 464.2641,
+     "tex": "concrete"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "d": 160.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "d": 0.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 464.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.0,
+      0.0,
+      -1.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": -384.2641,
+     "tex": "concrete"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "d": 160.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "d": 0.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 464.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "d": 340.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": -384.2641,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -0.0,
+      0.0,
+      -1.0
+     ],
+     "d": -260.0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0.7071,
+      0.0,
+      -0.7071
+     ],
+     "d": 40.0,
+     "tex": "concrete"
+    }
+   ]
+  },
+  {
+   "faces": [
+    {
+     "n": [
+      1,
+      0,
+      0
+     ],
+     "d": 160,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      -1,
+      0,
+      0
+     ],
+     "d": 160,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0,
+      1,
+      0
+     ],
+     "d": 96,
+     "tex": "caution"
+    },
+    {
+     "n": [
+      0,
+      -1,
+      0
+     ],
+     "d": 0,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0,
+      0,
+      1
+     ],
+     "d": -480,
+     "tex": "concrete"
+    },
+    {
+     "n": [
+      0,
+      0,
+      -1
+     ],
+     "d": 620,
+     "tex": "concrete"
+    }
+   ]
+  }
+ ],
+ "entities": [
+  {
+   "class": "light",
+   "origin": [
+    -500,
+    300,
+    0
+   ],
+   "props": {
+    "color": [
+     220,
+     230,
+     255
+    ],
+    "intensity": 1.0,
+    "radius": 700
+   }
+  },
+  {
+   "class": "light",
+   "origin": [
+    0,
+    300,
+    0
+   ],
+   "props": {
+    "color": [
+     220,
+     230,
+     255
+    ],
+    "intensity": 1.0,
+    "radius": 700
+   }
+  },
+  {
+   "class": "light",
+   "origin": [
+    500,
+    300,
+    0
+   ],
+   "props": {
+    "color": [
+     220,
+     230,
+     255
+    ],
+    "intensity": 1.0,
+    "radius": 700
+   }
+  },
+  {
+   "class": "player_start",
+   "origin": [
+    0,
+    40,
+    600
+   ],
+   "angle": 90
+  },
+  {
+   "class": "info_objective",
+   "origin": [
+    0,
+    0,
+    0
+   ],
+   "props": {
+    "id": "test",
+    "text": "Try the C, C++, Rust and C# entities"
+   }
+  },
+  {
+   "class": "cpp_turret",
+   "origin": [
+    -300,
+    168,
+    -300
+   ],
+   "angle": 270,
+   "props": {
+    "range": 900
+   }
+  },
+  {
+   "class": "cpp_turret",
+   "origin": [
+    300,
+    168,
+    -300
+   ],
+   "angle": 270,
+   "props": {
+    "range": 900
+   }
+  },
+  {
+   "class": "rust_heal_station",
+   "origin": [
+    -450,
+    0,
+    450
+   ]
+  },
+  {
+   "class": "csharp_launch_pad",
+   "origin": [
+    0,
+    4,
+    200
+   ],
+   "props": {
+    "power": 800
+   }
+  },
+  {
+   "class": "c_beacon",
+   "origin": [
+    450,
+    24,
+    450
+   ]
+  },
+  {
+   "class": "prop_model",
+   "origin": [
+    0,
+    96,
+    -550
+   ],
+   "props": {
+    "model": "models/props/barrel.glb"
+   },
+   "components": [
+    {
+     "type": "cpp_spinner",
+     "props": {
+      "speed": 90
+     }
+    },
+    {
+     "type": "rust_hover",
+     "props": {
+      "height": 12
+     }
+    },
+    {
+     "type": "csharp_pulse_light",
+     "props": {
+      "radius": 260
+     }
+    }
+   ]
+  },
+  {
+   "class": "prop_model",
+   "origin": [
+    -200,
+    0,
+    0
+   ],
+   "props": {
+    "model": "models/weapons/w_rocket.glb",
+    "scale": 2
+   },
+   "components": [
+    {
+     "type": "rotator",
+     "props": {
+      "speed": 60
+     }
+    },
+    {
+     "type": "bobber",
+     "props": {
+      "height": 6
+     }
+    }
+   ]
+  },
+  {
+   "class": "monster_grunt",
+   "origin": [
+    0,
+    48,
+    -200
+   ],
+   "angle": 270
+  },
+  {
+   "class": "item_health",
+   "origin": [
+    450,
+    32,
+    -450
+   ]
+  },
+  {
+   "class": "weapon_plasma",
+   "origin": [
+    -450,
+    32,
+    -450
+   ]
+  }
+ ]
+}

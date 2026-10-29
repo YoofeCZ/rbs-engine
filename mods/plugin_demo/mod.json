@@ -1,0 +1,5 @@
+{
+  "title": "Native plugin demo",
+  "description": "Entities and components written in C, C++, Rust and C# (see sdk/examples). Build the plugins first - see README.md.",
+  "author": "RBS Engine"
+}
